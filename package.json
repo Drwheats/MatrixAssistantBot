@@ -1,0 +1,28 @@
+{
+  "name": "matrix-assistant-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Matrix assistant bot with Google Calendar and Trello integrations",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@types/node": "^22.13.9",
+    "dotenv": "^16.4.7",
+    "googleapis": "^149.0.0",
+    "matrix-bot-sdk": "^0.7.1",
+    "trello": "^0.15.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

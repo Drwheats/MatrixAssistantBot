@@ -1,0 +1,46 @@
+import { config as loadDotEnv } from "dotenv";
+import { z } from "zod";
+
+loadDotEnv();
+
+const envSchema = z.object({
+  MATRIX_HOMESERVER_URL: z.string().url(),
+  MATRIX_ACCESS_TOKEN: z.string().min(1),
+  MATRIX_BOT_USER_ID: z.string().min(1),
+  MATRIX_ALLOWED_USERS: z.string().default(""),
+
+  GOOGLE_CALENDAR_CLIENT_EMAIL: z.string().email().optional(),
+  GOOGLE_CALENDAR_PRIVATE_KEY: z.string().optional(),
+  GOOGLE_CALENDAR_ID: z.string().optional(),
+
+  TRELLO_API_KEY: z.string().optional(),
+  TRELLO_API_TOKEN: z.string().optional(),
+  TRELLO_BOARD_ID: z.string().optional(),
+
+  PORT: z.coerce.number().default(3000)
+});
+
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  console.error("Invalid environment variables:");
+  console.error(parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+const allowedUsers = parsed.data.MATRIX_ALLOWED_USERS
+  .split(",")
+  .map((u) => u.trim())
+  .filter((u) => u.length > 0);
+
+export const env = {
+  ...parsed.data,
+  allowedUsers,
+  hasGoogleCalendarCredentials:
+    !!parsed.data.GOOGLE_CALENDAR_CLIENT_EMAIL &&
+    !!parsed.data.GOOGLE_CALENDAR_PRIVATE_KEY &&
+    !!parsed.data.GOOGLE_CALENDAR_ID,
+  hasTrelloCredentials:
+    !!parsed.data.TRELLO_API_KEY &&
+    !!parsed.data.TRELLO_API_TOKEN &&
+    !!parsed.data.TRELLO_BOARD_ID
+};
