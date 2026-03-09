@@ -1,6 +1,7 @@
 import { MatrixClient } from "matrix-bot-sdk";
 import { GoogleCalendarConnector } from "../connectors/googleCalendar";
 import { TrelloConnector } from "../connectors/trello";
+import { GrafanaConnector } from "../connectors/grafana";
 
 export interface CommandContext {
   client: MatrixClient;
@@ -10,4 +11,5 @@ export interface CommandContext {
   isAllowedUser: boolean;
   googleCalendar: GoogleCalendarConnector;
   trello: TrelloConnector;
+  grafana: GrafanaConnector;
 }

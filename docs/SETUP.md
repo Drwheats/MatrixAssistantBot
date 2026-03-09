@@ -79,22 +79,62 @@ Test in room:
 
 ## Step 6: Configure Trello (optional)
 
-Required only for `!trello due`.
+Required for:
+- `!trello due`
+- `!trello overdue`
+- `!trello create "TASK" DATE`
+- Weekly announcement message (Monday 10:30 local time)
+- Due reminders (1 hour and 5 minutes before due time)
 
-1. Get API key from Trello developer page.
-2. Generate an API token for your account.
+1. Get API key from Trello developer page https://trello.com/power-ups/admin
+2. Generate an API token for your account
 3. Find your board ID:
    - Open board, then use browser URL/dev tools or Trello API docs to get board id.
 4. Put these in `.env`:
    - `TRELLO_API_KEY`
    - `TRELLO_API_TOKEN`
    - `TRELLO_BOARD_ID`
+   - Optional: `TRELLO_DEFAULT_LIST_ID` (used by `!trello create`; if omitted, bot uses first open list)
 
 Test in room:
 
 - `!trello due`
+- `!trello overdue`
+- `!trello create "Submit report" tomorrow`
+- `!trello create "Submit report" next friday`
+- `!trello create "Submit report" in 3 days`
+- `!trello create "Submit report" the 15th`
+- `!trello create "Submit report" 15`
 
-## Step 7: Run bot
+After creating a card, reply to the bot's "Created Trello card..." message with plain text to append that text to the card description.
+
+After the bot starts, it also creates a private room named `Assistant Bot Announcements` on first run and invites users from `MATRIX_ALLOWED_USERS`. Scheduled Trello announcements are sent there.
+
+## Step 7: Configure Grafana (optional)
+
+Required for `!grafana` commands.
+
+1. Create a Grafana API token with read access to logs/alerts.
+2. Find your Loki datasource UID in Grafana.
+3. Put these in `.env`:
+   - `GRAFANA_URL`
+   - `GRAFANA_TOKEN`
+   - `GRAFANA_LOKI_DATASOURCE_UID`
+   - Optional: `GRAFANA_LOG_LABEL_SELECTOR` (for example `{app="api"}`)
+   - Optional: `GRAFANA_INCIDENT_SERVICE_LABEL` (defaults to `service`)
+
+Test in room:
+
+- `!grafana help`
+- `!grafana critical 24h`
+- `!grafana errors api 6h`
+- `!grafana alerts firing`
+- `!grafana incident 24h`
+- `!grafana service "payments-api" 24h`
+- `!grafana spikes 6h`
+- `!grafana query "{app=\"api\"} |= \"panic\"" 2h`
+
+## Step 8: Run bot
 
 Development:
 
@@ -114,4 +154,5 @@ npm start
 - `Unknown command`: use `!help` to list commands.
 - `Google Calendar is not configured`: one or more Google env vars are missing.
 - `Trello is not configured`: one or more Trello env vars are missing.
+- `Grafana is not configured`: one or more Grafana env vars are missing.
 - No bot reply: confirm bot is in room, token is valid, and homeserver URL is correct.

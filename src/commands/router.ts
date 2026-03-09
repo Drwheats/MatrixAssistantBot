@@ -1,7 +1,8 @@
 import { handleCalendarTodayCommand } from "./calendar";
+import { handleGrafanaCommand } from "./grafana";
 import { handleHelpCommand } from "./help";
 import { handlePingCommand } from "./ping";
-import { handleTrelloDueCommand } from "./trello";
+import { handleTrelloCreateCommand, handleTrelloDueCommand, handleTrelloOverdueCommand } from "./trello";
 import { CommandContext } from "../types/commandContext";
 
 export async function routeCommand(ctx: CommandContext): Promise<void> {
@@ -24,6 +25,21 @@ export async function routeCommand(ctx: CommandContext): Promise<void> {
 
   if (normalized === "!trello due") {
     await handleTrelloDueCommand(ctx);
+    return;
+  }
+
+  if (normalized === "!trello overdue") {
+    await handleTrelloOverdueCommand(ctx);
+    return;
+  }
+
+  if (normalized.startsWith("!trello create ")) {
+    await handleTrelloCreateCommand(ctx);
+    return;
+  }
+
+  if (normalized === "!grafana" || normalized.startsWith("!grafana ")) {
+    await handleGrafanaCommand(ctx);
     return;
   }
 

@@ -16,6 +16,13 @@ const envSchema = z.object({
   TRELLO_API_KEY: z.string().optional(),
   TRELLO_API_TOKEN: z.string().optional(),
   TRELLO_BOARD_ID: z.string().optional(),
+  TRELLO_DEFAULT_LIST_ID: z.string().optional(),
+
+  GRAFANA_URL: z.string().url().optional(),
+  GRAFANA_TOKEN: z.string().optional(),
+  GRAFANA_LOKI_DATASOURCE_UID: z.string().optional(),
+  GRAFANA_LOG_LABEL_SELECTOR: z.string().optional(),
+  GRAFANA_INCIDENT_SERVICE_LABEL: z.string().optional(),
 
   PORT: z.coerce.number().default(3000)
 });
@@ -42,5 +49,9 @@ export const env = {
   hasTrelloCredentials:
     !!parsed.data.TRELLO_API_KEY &&
     !!parsed.data.TRELLO_API_TOKEN &&
-    !!parsed.data.TRELLO_BOARD_ID
+    !!parsed.data.TRELLO_BOARD_ID,
+  hasGrafanaCredentials:
+    !!parsed.data.GRAFANA_URL &&
+    !!parsed.data.GRAFANA_TOKEN &&
+    !!parsed.data.GRAFANA_LOKI_DATASOURCE_UID
 };

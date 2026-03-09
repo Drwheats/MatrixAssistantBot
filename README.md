@@ -3,6 +3,12 @@
 A Matrix bot that responds to chat commands and can pull data from:
 - Google Calendar (`!calendar today`)
 - Trello (`!trello due`)
+- Grafana (`!grafana critical`, `!grafana alerts`, `!grafana incident`)
+
+It also sends scheduled Trello announcements in a dedicated room:
+- Weekly digest on Monday at 10:30 (local server time)
+- 1 hour before a task is due
+- 5 minutes before a task is due
 
 ## 1. Prerequisites
 
@@ -30,6 +36,19 @@ npm start
 - `!help`
 - `!calendar today`
 - `!trello due`
+- `!trello overdue`
+- `!trello create "TASK" DATE`
+- `!grafana help`
+- `!grafana critical [window]`
+- `!grafana errors [service] [window]`
+- `!grafana alerts [state]`
+- `!grafana incident [window]`
+- `!grafana service "NAME" [window]`
+- `!grafana spikes [window]`
+- `!grafana query "LOKI_QUERY" [window]`
+
+`!trello create` supports natural dates like `tomorrow`, `end of week`, `next friday`, `in 3 days`, `the 15th`, and `15`.
+Reply to the bot's card-created message to append your reply text to the Trello card description.
 
 Integration commands require credentials in `.env`.
 
