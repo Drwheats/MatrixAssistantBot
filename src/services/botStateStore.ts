@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 
 export interface BotState {
   announcementRoomId?: string;
+  grafanaAlertsRoomId?: string;
   lastWeeklyAnnouncementISO?: string;
   sentReminderKeys: string[];
 }
@@ -24,6 +25,7 @@ export class BotStateStore {
       const parsed = JSON.parse(raw) as Partial<BotState>;
       return {
         announcementRoomId: parsed.announcementRoomId,
+        grafanaAlertsRoomId: parsed.grafanaAlertsRoomId,
         lastWeeklyAnnouncementISO: parsed.lastWeeklyAnnouncementISO,
         sentReminderKeys: Array.isArray(parsed.sentReminderKeys) ? parsed.sentReminderKeys : []
       };

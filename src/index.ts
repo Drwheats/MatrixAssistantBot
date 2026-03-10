@@ -7,6 +7,7 @@ import { routeCommand } from "./commands/router";
 import { handleTrelloReplyDescriptionMessage } from "./commands/trello";
 import { BotStateStore } from "./services/botStateStore";
 import { AnnouncementService } from "./services/announcements";
+import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -19,6 +20,7 @@ const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
 const stateStore = new BotStateStore("assistant-state.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
+const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
@@ -68,6 +70,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
 
 async function main(): Promise<void> {
   await client.start();
+  await grafanaAlertsChannelService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }
