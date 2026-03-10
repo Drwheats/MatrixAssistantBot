@@ -2,28 +2,32 @@ name: MacBook Auto Deploy
 
 on:
   push:
-    branches: [ main ]      # Auto-deploys on every push to the main branch
-  workflow_dispatch:         # This provides the "Manual Deploy" button
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
-    # This tells GitHub to run the code on your MacBook runner
     runs-on: self-hosted
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Setup Path and Install
         run: |
-          # Use CI for faster, cleaner installs
+          # Add common Mac Homebrew and Local paths to the Runner's PATH
+          export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin
+          
+          echo "Checking versions..."
+          node -v
+          npm -v
+          
           npm install
 
       - name: Deploy/Restart Server
         run: |
-          # We use --name to identify your app easily
-          # This command tries to restart it; if it's not running, it starts it.
-          pm2 restart my-cool-app || pm2 start index.js --name "my-cool-app"
+          # Add path here too so it can find PM2
+          export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin
           
-          # Saves the process list so it survives a MacBook reboot
+          pm2 restart my-cool-app || pm2 start index.js --name "my-cool-app"
           pm2 save
