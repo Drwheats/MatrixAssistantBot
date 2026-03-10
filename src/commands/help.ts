@@ -16,7 +16,9 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     "!grafana incident [window] - incident summary",
     '!grafana service "NAME" [window] - service health snapshot',
     "!grafana spikes [window] - compare current/previous error rates",
-    '!grafana query "LOKI_QUERY" [window] - run a raw Loki query'
+    '!grafana query "LOKI_QUERY" [window] - run a raw Loki query',
+    "!blimpf PROMPT - send a prompt to LLM Studio",
+    "!factcheck - reply to a message with this to fact check it"
   ];
 
   await ctx.client.sendMessage(ctx.roomId, {

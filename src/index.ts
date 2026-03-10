@@ -5,12 +5,14 @@ import { GrafanaConnector } from "./connectors/grafana";
 import { TrelloConnector } from "./connectors/trello";
 import { routeCommand } from "./commands/router";
 import { handleTrelloReplyDescriptionMessage } from "./commands/trello";
+import { handleFactcheckReplyMessage } from "./commands/llmStudio";
 import { BotStateStore } from "./services/botStateStore";
 import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
 import { OnePasswordSigninAlertsService } from "./services/onePasswordSigninAlerts";
 import { OnePasswordEventsConnector } from "./connectors/onePasswordEvents";
+import { LlmStudioConnector } from "./connectors/llmStudio";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -22,6 +24,7 @@ const googleCalendar = new GoogleCalendarConnector();
 const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
 const onePasswordEvents = new OnePasswordEventsConnector();
+const llmStudio = new LlmStudioConnector();
 const stateStore = new BotStateStore("assistant-state.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
 const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
@@ -60,11 +63,30 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       isAllowedUser,
       googleCalendar,
       trello,
-      grafana
+      grafana,
+      llmStudio
     },
     event
   );
   if (handledReply) {
+    return;
+  }
+
+  const handledFactcheckReply = await handleFactcheckReplyMessage(
+    {
+      client,
+      roomId,
+      sender,
+      commandBody: body,
+      isAllowedUser,
+      googleCalendar,
+      trello,
+      grafana,
+      llmStudio
+    },
+    event
+  );
+  if (handledFactcheckReply) {
     return;
   }
 
@@ -80,7 +102,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     isAllowedUser,
     googleCalendar,
     trello,
-    grafana
+    grafana,
+    llmStudio
   });
 });
 

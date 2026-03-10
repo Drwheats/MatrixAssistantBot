@@ -37,6 +37,13 @@ const envSchema = z.object({
   ONEPASSWORD_SIGNIN_LIMIT: z.coerce.number().optional(),
   ONEPASSWORD_SIGNIN_MAX_PAGES: z.coerce.number().optional(),
 
+  LLM_STUDIO_BASE_URL: z.string().url().default("http://localhost:1234"),
+  LLM_STUDIO_API_KEY: z.string().optional(),
+  LLM_STUDIO_MODEL: z.string().optional(),
+  LLM_STUDIO_TEMPERATURE: z.coerce.number().optional(),
+  LLM_STUDIO_MAX_TOKENS: z.coerce.number().optional(),
+  LLM_STUDIO_TIMEOUT_MS: z.coerce.number().optional(),
+
   PORT: z.coerce.number().default(3000)
 });
 
@@ -78,5 +85,9 @@ export const env = {
   onePasswordSigninAlertsEnabled: parsed.data.ONEPASSWORD_SIGNIN_ALERTS_ENABLED ?? false,
   onePasswordSigninPollMs: parsed.data.ONEPASSWORD_SIGNIN_POLL_MS ?? 30_000,
   onePasswordSigninLimit: parsed.data.ONEPASSWORD_SIGNIN_LIMIT ?? 100,
-  onePasswordSigninMaxPages: parsed.data.ONEPASSWORD_SIGNIN_MAX_PAGES ?? 3
+  onePasswordSigninMaxPages: parsed.data.ONEPASSWORD_SIGNIN_MAX_PAGES ?? 3,
+  hasLlmStudioCredentials: !!parsed.data.LLM_STUDIO_MODEL,
+  llmStudioTemperature: parsed.data.LLM_STUDIO_TEMPERATURE ?? 0.2,
+  llmStudioMaxTokens: parsed.data.LLM_STUDIO_MAX_TOKENS ?? 700,
+  llmStudioTimeoutMs: parsed.data.LLM_STUDIO_TIMEOUT_MS ?? 30_000
 };
