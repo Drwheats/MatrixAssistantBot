@@ -13,21 +13,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Path and Install
+      - name: Build and Deploy
         run: |
-          # Add common Mac Homebrew and Local paths to the Runner's PATH
+          # 1. Ensure the Runner can find Node/NPM/PM2
           export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin
           
-          echo "Checking versions..."
-          node -v
-          npm -v
-          
+          # 2. Install dependencies (cleanly)
           npm install
-
-      - name: Deploy/Restart Server
-        run: |
-          # Add path here too so it can find PM2
-          export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin
           
-          pm2 restart my-cool-app || pm2 start index.js --name "my-cool-app"
+          # 3. Build your application
+          npm run build
+          
+          # 4. Restart the server with PM2
+          # We tell PM2 to run 'npm start' and name it 'my-app'
+          pm2 restart my-app || pm2 start npm --name "my-app" -- start
+          
+          # 5. Save the PM2 list for reboot persistence
           pm2 save
