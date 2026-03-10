@@ -4,5 +4,13 @@
   "lastWeeklyAnnouncementISO": "2026-03-09T14:30:08.655Z",
   "sentReminderKeys": [
     "69ae6a9bbcc213bff64077e7:2026-03-09T15:36:00.000Z:60"
+  ],
+  "securityLoginSeenKeys": [
+    "2026-03-10T17:51:07.406Z|2026-03-10T13:51:07.288711-04:00 mushroom sshd[745006]: Accepted password for mushroom from 192.168.68.64 port 47520 ssh2",
+    "2026-03-10T17:52:37.355Z|2026-03-10T13:52:37.218730-04:00 mushroom sshd[745793]: Accepted password for mushroom from 192.168.68.64 port 51256 ssh2",
+    "2026-03-10T17:53:47.252Z|2026-03-10T13:53:47.143093-04:00 mushroom sshd[746383]: Accepted password for mushroom from 192.168.68.64 port 44750 ssh2",
+    "2026-03-10T17:53:54.766Z|2026-03-10T13:53:54.524974-04:00 mushroom sshd[746455]: Accepted password for mushroom from 192.168.68.64 port 44604 ssh2",
+    "2026-03-10T17:55:42.256Z|2026-03-10T13:55:42.025600-04:00 mushroom sshd[747432]: Accepted password for mushroom from 192.168.68.64 port 38996 ssh2",
+    "2026-03-10T18:31:30.611Z|2026-03-10T14:31:30.461927-04:00 mushroom sshd[765928]: Accepted password for mushroom from 192.168.68.64 port 40922 ssh2"
   ]
 }

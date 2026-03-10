@@ -122,6 +122,12 @@ Required for `!grafana` commands.
    - `GRAFANA_LOKI_DATASOURCE_UID`
    - Optional: `GRAFANA_LOG_LABEL_SELECTOR` (for example `{app="api"}`)
    - Optional: `GRAFANA_INCIDENT_SERVICE_LABEL` (defaults to `service`)
+   - Optional: `GRAFANA_SECURITY_LOGIN_ALERTS_ENABLED` (enable SSH password login alerts)
+   - Optional: `GRAFANA_SECURITY_LOGIN_QUERY` (override Loki query for password logins)
+   - Optional: `GRAFANA_SECURITY_LOGIN_LABEL_SELECTOR` (override label selector for password logins)
+   - Optional: `GRAFANA_SECURITY_LOGIN_POLL_MS` (poll interval, default 15000)
+   - Optional: `GRAFANA_SECURITY_LOGIN_LOOKBACK_MS` (lookback window, default 300000)
+   - Optional: `GRAFANA_SECURITY_LOGIN_LIMIT` (max logs per poll, default 50)
 
 Test in room:
 
@@ -134,7 +140,24 @@ Test in room:
 - `!grafana spikes 6h`
 - `!grafana query "{app=\"api\"} |= \"panic\"" 2h`
 
-## Step 8: Run bot
+When enabled, the bot will post SSH password login logs to the private `Grafana Alerts` room as they appear.
+
+## Step 8: Configure 1Password Events API (optional)
+
+Use this to post successful 1Password sign-ins to the `Grafana Alerts` room.
+
+1. Create a 1Password Events API token with access to sign-in activity.
+2. Put these in `.env`:
+   - `ONEPASSWORD_EVENTS_BASE_URL` (default `https://events.1password.com`)
+   - `ONEPASSWORD_EVENTS_TOKEN`
+   - `ONEPASSWORD_SIGNIN_ALERTS_ENABLED`
+   - Optional: `ONEPASSWORD_SIGNIN_POLL_MS` (default 30000)
+   - Optional: `ONEPASSWORD_SIGNIN_LIMIT` (default 100)
+   - Optional: `ONEPASSWORD_SIGNIN_MAX_PAGES` (default 3)
+
+The bot only reports successful sign-ins and does not require access to vault data.
+
+## Step 9: Run bot
 
 Development:
 

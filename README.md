@@ -4,6 +4,8 @@ A Matrix bot that responds to chat commands and can pull data from:
 - Google Calendar (`!calendar today`)
 - Trello (`!trello due`)
 - Grafana (`!grafana critical`, `!grafana alerts`, `!grafana incident`)
+- Grafana security login alerts (optional, posts SSH password logins to Grafana Alerts room)
+- 1Password sign-in alerts (optional, posts successful sign-ins to Grafana Alerts room)
 
 It also sends scheduled Trello announcements in a dedicated room:
 - Weekly digest on Monday at 10:30 (local server time)

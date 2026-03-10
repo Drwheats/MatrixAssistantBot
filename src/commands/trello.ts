@@ -187,15 +187,51 @@ function parseCreateInput(commandBody: string): { taskName: string; dateInput: s
 }
 
 function parseNaturalDate(input: string): Date | null {
-  const normalized = input.trim().toLowerCase().replace(/\s+/g, " ");
+  let normalized = input.trim().toLowerCase().replace(/\s+/g, " ");
+  normalized = normalized.replace(/^(at|by)\s+/, "");
   const { dateText, time } = extractTime(normalized);
-  const text = dateText;
+  const text = dateText.replace(/^(at|by)\s+/, "");
   const now = new Date();
+  const inMinutesMatch = text.match(/^in\s+(\d+)\s+minutes?$/);
+  if (inMinutesMatch) {
+    const minutes = Number(inMinutesMatch[1]);
+    if (Number.isInteger(minutes) && minutes >= 0) {
+      return new Date(now.getTime() + minutes * 60_000);
+    }
+  }
+
+  const inHoursMatch = text.match(/^in\s+(\d+)\s+hours?$/);
+  if (inHoursMatch) {
+    const hours = Number(inHoursMatch[1]);
+    if (Number.isInteger(hours) && hours >= 0) {
+      return new Date(now.getTime() + hours * 60_000 * 60);
+    }
+  }
+
+  const rawMinutesMatch = text.match(/^(\d+)\s+minutes?$/);
+  if (rawMinutesMatch) {
+    const minutes = Number(rawMinutesMatch[1]);
+    if (Number.isInteger(minutes) && minutes >= 0) {
+      return new Date(now.getTime() + minutes * 60_000);
+    }
+  }
+
+  const rawHoursMatch = text.match(/^(\d+)\s+hours?$/);
+  if (rawHoursMatch) {
+    const hours = Number(rawHoursMatch[1]);
+    if (Number.isInteger(hours) && hours >= 0) {
+      return new Date(now.getTime() + hours * 60_000 * 60);
+    }
+  }
 
   if (text === "tomorrow" || text === "tommorow") {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     return withOptionalTime(d, time);
+  }
+
+  if (text === "today") {
+    return withOptionalTime(now, time);
   }
 
   if (text === "end of week") {
@@ -435,19 +471,19 @@ interface ParsedTime {
 function extractTime(text: string): { dateText: string; time: ParsedTime | null } {
   if (/\bnoon\b/.test(text)) {
     return {
-      dateText: text.replace(/\bat\s+noon\b|\bnoon\b/g, "").trim(),
+      dateText: text.replace(/\b(?:at|by)\s+noon\b|\bnoon\b/g, "").trim(),
       time: { hours: 12, minutes: 0 }
     };
   }
 
   if (/\bmidnight\b/.test(text)) {
     return {
-      dateText: text.replace(/\bat\s+midnight\b|\bmidnight\b/g, "").trim(),
+      dateText: text.replace(/\b(?:at|by)\s+midnight\b|\bmidnight\b/g, "").trim(),
       time: { hours: 0, minutes: 0 }
     };
   }
 
-  const amPmMatch = text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  const amPmMatch = text.match(/\b(?:(?:at|by)\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
   if (amPmMatch) {
     const rawHour = Number(amPmMatch[1]);
     const minutes = Number(amPmMatch[2] ?? "0");
@@ -463,7 +499,7 @@ function extractTime(text: string): { dateText: string; time: ParsedTime | null 
     }
   }
 
-  const twentyFourMatch = text.match(/\b(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\b/);
+  const twentyFourMatch = text.match(/\b(?:(?:at|by)\s+)?([01]?\d|2[0-3]):([0-5]\d)\b/);
   if (twentyFourMatch) {
     return {
       dateText: text.replace(twentyFourMatch[0], "").trim(),

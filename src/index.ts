@@ -8,6 +8,9 @@ import { handleTrelloReplyDescriptionMessage } from "./commands/trello";
 import { BotStateStore } from "./services/botStateStore";
 import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
+import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
+import { OnePasswordSigninAlertsService } from "./services/onePasswordSigninAlerts";
+import { OnePasswordEventsConnector } from "./connectors/onePasswordEvents";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -18,9 +21,22 @@ AutojoinRoomsMixin.setupOnClient(client);
 const googleCalendar = new GoogleCalendarConnector();
 const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
+const onePasswordEvents = new OnePasswordEventsConnector();
 const stateStore = new BotStateStore("assistant-state.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
 const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
+const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
+  client,
+  grafana,
+  grafanaAlertsChannelService,
+  stateStore
+);
+const onePasswordSigninAlertsService = new OnePasswordSigninAlertsService(
+  client,
+  onePasswordEvents,
+  grafanaAlertsChannelService,
+  stateStore
+);
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
@@ -71,6 +87,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
 async function main(): Promise<void> {
   await client.start();
   await grafanaAlertsChannelService.start();
+  await grafanaSecurityLoginAlertsService.start();
+  await onePasswordSigninAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }
