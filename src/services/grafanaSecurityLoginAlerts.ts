@@ -31,7 +31,11 @@ export class GrafanaSecurityLoginAlertsService {
       return;
     }
 
-    await this.checkAndSend(state, roomId);
+    try {
+      await this.checkAndSend(state, roomId);
+    } catch (error) {
+      console.error("Security login check failed during startup:", error);
+    }
     this.intervalHandle = setInterval(() => {
       this.checkAndSend(state, roomId).catch((error) => {
         console.error("Security login check failed:", error);
