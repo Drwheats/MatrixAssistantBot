@@ -11,6 +11,7 @@ import { isAdminUser, isAllowedUser, loadBotConfig } from "./services/botConfig"
 import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
+import { GrafanaQbittorrentAlertsService } from "./services/grafanaQbittorrentAlerts";
 import { LlmStudioConnector } from "./connectors/llmStudio";
 
 LogService.setLevel(LogLevel.ERROR);
@@ -27,6 +28,12 @@ const stateStore = new BotStateStore("assistant-state.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
 const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
 const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
+  client,
+  grafana,
+  grafanaAlertsChannelService,
+  stateStore
+);
+const grafanaQbittorrentAlertsService = new GrafanaQbittorrentAlertsService(
   client,
   grafana,
   grafanaAlertsChannelService,
@@ -117,6 +124,7 @@ async function main(): Promise<void> {
   await client.start();
   await grafanaAlertsChannelService.start();
   await grafanaSecurityLoginAlertsService.start();
+  await grafanaQbittorrentAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }

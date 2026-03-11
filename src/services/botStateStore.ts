@@ -7,6 +7,7 @@ export interface BotState {
   lastWeeklyAnnouncementISO?: string;
   sentReminderKeys: string[];
   securityLoginSeenKeys: string[];
+  qbittorrentSeenKeys: string[];
   botDisplayName?: string;
   promptCommand?: string;
   openMode?: boolean;
@@ -16,6 +17,7 @@ export interface BotState {
 const DEFAULT_STATE: BotState = {
   sentReminderKeys: [],
   securityLoginSeenKeys: [],
+  qbittorrentSeenKeys: [],
   extraAllowedUsers: []
 };
 
@@ -36,6 +38,7 @@ export class BotStateStore {
         lastWeeklyAnnouncementISO: parsed.lastWeeklyAnnouncementISO,
         sentReminderKeys: Array.isArray(parsed.sentReminderKeys) ? parsed.sentReminderKeys : [],
         securityLoginSeenKeys: Array.isArray(parsed.securityLoginSeenKeys) ? parsed.securityLoginSeenKeys : [],
+        qbittorrentSeenKeys: Array.isArray(parsed.qbittorrentSeenKeys) ? parsed.qbittorrentSeenKeys : [],
         botDisplayName: typeof parsed.botDisplayName === "string" ? parsed.botDisplayName : undefined,
         promptCommand: typeof parsed.promptCommand === "string" ? parsed.promptCommand : undefined,
         openMode: typeof parsed.openMode === "boolean" ? parsed.openMode : undefined,
@@ -50,6 +53,7 @@ export class BotStateStore {
     const current = await this.load();
     const sentReminderKeys = Array.isArray(state.sentReminderKeys) ? state.sentReminderKeys : [];
     const securityLoginSeenKeys = Array.isArray(state.securityLoginSeenKeys) ? state.securityLoginSeenKeys : [];
+    const qbittorrentSeenKeys = Array.isArray(state.qbittorrentSeenKeys) ? state.qbittorrentSeenKeys : [];
     const extraAllowedUsers = Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
@@ -57,6 +61,7 @@ export class BotStateStore {
       lastWeeklyAnnouncementISO: latestISO(state.lastWeeklyAnnouncementISO, current.lastWeeklyAnnouncementISO),
       sentReminderKeys: mergeUnique(current.sentReminderKeys, sentReminderKeys, 5000),
       securityLoginSeenKeys: mergeUnique(current.securityLoginSeenKeys, securityLoginSeenKeys, 5000),
+      qbittorrentSeenKeys: mergeUnique(current.qbittorrentSeenKeys, qbittorrentSeenKeys, 5000),
       botDisplayName: state.botDisplayName ?? current.botDisplayName,
       promptCommand: state.promptCommand ?? current.promptCommand,
       openMode: state.openMode ?? current.openMode,

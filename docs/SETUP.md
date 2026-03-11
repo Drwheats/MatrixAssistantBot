@@ -56,6 +56,16 @@ From your normal Matrix account:
 
 If setup is correct, bot replies `pong`.
 
+Admin commands require the sender to be listed in `MATRIX_ALLOWED_USERS`.
+
+Admin command examples:
+- `!admin rename "New Bot Name" !ask`
+- `!admin command !ask`
+- `!admin allow @friend:yourdomain.com`
+- `!admin deny @friend:yourdomain.com`
+- `!admin open on`
+- `!admin open off`
+
 ## Step 5: Configure Google Calendar (optional)
 
 Required only for `!calendar today`.
@@ -142,10 +152,19 @@ Test in room:
 
 When enabled, the bot will post SSH password login logs to the private `Grafana Alerts` room as they appear.
 
+Optional qbittorrent download alerts (from Loki logs):
+- `GRAFANA_QBITTORRENT_ALERTS_ENABLED` (enable qbittorrent alerts)
+- `GRAFANA_QBITTORRENT_LABEL_SELECTOR` (label selector for qbittorrent logs, e.g. `{app="qbittorrent"}`)
+- `GRAFANA_QBITTORRENT_POLL_MS` (poll interval, default 15000)
+- `GRAFANA_QBITTORRENT_LOOKBACK_MS` (lookback window, default 300000)
+- `GRAFANA_QBITTORRENT_LIMIT` (max logs per poll, default 50)
+
+When enabled, the bot will post qbittorrent download start/finish events to the `Grafana Alerts` room.
+
 ## Step 8: Configure LLM Studio (optional)
 
 Required for:
-- `!blimpf PROMPT`
+- `!blimpf PROMPT` (default prompt command; can be renamed)
 - `!factcheck` (reply to a message)
 
 1. Run LLM Studio and enable the OpenAI-compatible API server.
@@ -165,22 +184,7 @@ Test in room:
 - `!blimpf Write a one-sentence summary of this channel.`
 - Reply to any message with `!factcheck`
 
-## Step 9: Configure 1Password Events API (optional)
-
-Use this to post successful 1Password sign-ins to the `Grafana Alerts` room.
-
-1. Create a 1Password Events API token with access to sign-in activity.
-2. Put these in `.env`:
-   - `ONEPASSWORD_EVENTS_BASE_URL` (default `https://events.1password.com`)
-   - `ONEPASSWORD_EVENTS_TOKEN`
-   - `ONEPASSWORD_SIGNIN_ALERTS_ENABLED`
-   - Optional: `ONEPASSWORD_SIGNIN_POLL_MS` (default 30000)
-   - Optional: `ONEPASSWORD_SIGNIN_LIMIT` (default 100)
-   - Optional: `ONEPASSWORD_SIGNIN_MAX_PAGES` (default 3)
-
-The bot only reports successful sign-ins and does not require access to vault data.
-
-## Step 10: Run bot
+## Step 9: Run bot
 
 Development:
 
