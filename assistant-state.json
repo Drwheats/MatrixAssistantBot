@@ -24,7 +24,16 @@
     "2026-03-11T20:28:51.146Z|2026-03-11T16:28:50.997033-04:00 mushroom sshd[1589528]: Accepted password for mushroom from 192.168.68.64 port 54628 ssh2",
     "2026-03-11T20:32:10.882Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
     "2026-03-11T20:32:10.946Z|2026-03-11T16:32:10.882677-04:00 mushroom sshd[1592240]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
-    "2026-03-11T20:32:10.946Z|2026-03-11T16:32:10.876071-04:00 mushroom sshd[1592240]: Accepted password for mushroom from 192.168.68.64 port 33656 ssh2"
+    "2026-03-11T20:32:10.946Z|2026-03-11T16:32:10.876071-04:00 mushroom sshd[1592240]: Accepted password for mushroom from 192.168.68.64 port 33656 ssh2",
+    "2026-03-11T21:11:33.249Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:11:33.375Z|2026-03-11T17:11:33.249746-04:00 mushroom sshd[1621931]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:11:33.375Z|2026-03-11T17:11:33.248442-04:00 mushroom sshd[1621931]: Accepted password for mushroom from 192.168.68.64 port 57504 ssh2",
+    "2026-03-11T21:11:44.142Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:11:44.152Z|2026-03-11T17:11:44.142514-04:00 mushroom sshd[1622169]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:11:44.152Z|2026-03-11T17:11:44.141074-04:00 mushroom sshd[1622169]: Accepted password for mushroom from 192.168.68.64 port 48830 ssh2",
+    "2026-03-11T21:12:56.274Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:12:56.318Z|2026-03-11T17:12:56.274383-04:00 mushroom sshd[1623549]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T21:12:56.318Z|2026-03-11T17:12:56.273032-04:00 mushroom sshd[1623549]: Accepted password for mushroom from 192.168.68.64 port 43264 ssh2"
   ],
   "qbittorrentSeenKeys": [],
   "botDisplayName": "Blompf",

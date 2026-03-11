@@ -1,6 +1,6 @@
 import { MatrixClient } from "matrix-bot-sdk";
 import { env } from "../config/env";
-import { GrafanaConnector, GrafanaLogEntry } from "../connectors/grafana";
+import { GrafanaConnector, GrafanaLogEntry, normalizeLokiSelector } from "../connectors/grafana";
 import { GrafanaAlertsChannelService } from "./grafanaAlertsChannel";
 import { BotState, BotStateStore } from "./botStateStore";
 
@@ -130,10 +130,11 @@ export class GrafanaQbittorrentAlertsService {
   }
 
   private buildQuery(state: BotState): string {
-    const selector =
-      state.qbittorrentLabelSelector ??
-      env.GRAFANA_LOG_LABEL_SELECTOR ??
-      '{container="qbittorrent",job="qbittorrent"}';
+    const selector = state.qbittorrentLabelSelector
+      ? normalizeLokiSelector(state.qbittorrentLabelSelector)
+      : env.GRAFANA_LOG_LABEL_SELECTOR
+        ? normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR)
+        : '{container="qbittorrent",job="qbittorrent"}';
     return `${selector} |~ "(?i)added new torrent|torrent download finished|file error alert"`;
   }
 

@@ -1,6 +1,6 @@
 import { MatrixClient } from "matrix-bot-sdk";
 import { env } from "../config/env";
-import { GrafanaConnector } from "../connectors/grafana";
+import { GrafanaConnector, normalizeLokiSelector } from "../connectors/grafana";
 import { GrafanaAlertsChannelService } from "./grafanaAlertsChannel";
 import { BotState, BotStateStore } from "./botStateStore";
 
@@ -96,7 +96,7 @@ export class GrafanaSecurityLoginAlertsService {
       return env.GRAFANA_SECURITY_LOGIN_QUERY;
     }
 
-    const selector = env.GRAFANA_SECURITY_LOGIN_LABEL_SELECTOR || "{}";
+    const selector = normalizeLokiSelector(env.GRAFANA_SECURITY_LOGIN_LABEL_SELECTOR);
     return `${selector} |~ "(?i)sshd" |~ "(?i)(accepted password|session opened for user)"`;
   }
 

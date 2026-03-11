@@ -212,7 +212,9 @@ export async function handleGrafanaCommand(ctx: CommandContext): Promise<void> {
     await sendHelp(ctx);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await sendText(ctx, `Grafana error: ${message}`);
+    const isBadRequest = typeof message === "string" && message.includes("400");
+    const hint = isBadRequest ? " (Bad request: check label selector or query syntax.)" : "";
+    await sendText(ctx, `Grafana error: ${message}${hint}`);
   }
 }
 

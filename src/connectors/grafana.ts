@@ -36,7 +36,7 @@ export class GrafanaConnector {
       throw new Error("Grafana is not configured.");
     }
 
-    const selector = env.GRAFANA_LOG_LABEL_SELECTOR || "{}";
+    const selector = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
     const query = `${selector} |~ "(?i)(critical|fatal|panic|sev1|p1)"`;
     return this.queryLokiRange(query, windowMs, limit);
   }
@@ -46,7 +46,7 @@ export class GrafanaConnector {
       throw new Error("Grafana is not configured.");
     }
 
-    const selector = this.withServiceMatcher(env.GRAFANA_LOG_LABEL_SELECTOR || "{}", service);
+    const selector = this.withServiceMatcher(normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR), service);
     const query = `${selector} |~ "(?i)(error|exception|failed|timeout)"`;
     return this.queryLokiRange(query, windowMs, limit);
   }
@@ -64,7 +64,9 @@ export class GrafanaConnector {
     });
 
     if (!response.ok) {
-      throw new Error(`Grafana API error: ${response.status} ${response.statusText}`);
+      const text = await response.text();
+      const details = text ? ` - ${text}` : "";
+      throw new Error(`Grafana API error: ${response.status} ${response.statusText}${details}`);
     }
 
     const alerts = (await response.json()) as GrafanaAlert[];
@@ -132,7 +134,7 @@ export class GrafanaConnector {
     windowMs: number,
     limit = 10
   ): Promise<Array<{ service: string; count: number }>> {
-    const selector = env.GRAFANA_LOG_LABEL_SELECTOR || "{}";
+    const selector = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
     const query = `${selector} |~ "(?i)(error|exception|failed|timeout)"`;
     const endMs = Date.now() - windowMs;
     const logs = await this.queryLokiRange(query, windowMs, 500, endMs);
@@ -250,4 +252,24 @@ export class GrafanaConnector {
       .map((v) => v.toLowerCase());
     return candidates.some((v) => v.includes(normalizedService));
   }
+}
+
+export function normalizeLokiSelector(selector?: string): string {
+  const raw = typeof selector === "string" ? selector.trim() : "";
+  if (!raw) {
+    return "{}";
+  }
+  if (!raw.startsWith("{") || !raw.endsWith("}")) {
+    return "{}";
+  }
+  const inner = raw.slice(1, -1).trim();
+  if (!inner) {
+    return "{}";
+  }
+  const cleaned = inner
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join(",");
+  return cleaned.length > 0 ? `{${cleaned}}` : "{}";
 }
