@@ -13,20 +13,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create .env file
+        run: |
+          # This pulls the secret you saved in GitHub and writes it to the root
+          echo "${{ secrets.ENV_FILE }}" > .env
+
       - name: Build and Deploy
         run: |
           # 1. Ensure the Runner can find Node/NPM/PM2
           export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin
           
-          # 2. Install dependencies (cleanly)
+          # 2. Install dependencies
           npm install
           
           # 3. Build your application
           npm run build
           
           # 4. Restart the server with PM2
-          # We tell PM2 to run 'npm start' and name it 'my-app'
-          pm2 restart my-app || pm2 start npm --name "my-app" -- start
+          # (Replacing 'my-app' with your actual bot name if different)
+          pm2 restart matrix-assistant-bot || pm2 start npm --name "matrix-assistant-bot" -- start
           
-          # 5. Save the PM2 list for reboot persistence
+          # 5. Save for reboot persistence
           pm2 save
