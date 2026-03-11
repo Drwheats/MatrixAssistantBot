@@ -66,7 +66,10 @@ export class GrafanaConnector {
     if (!response.ok) {
       const text = await response.text();
       const details = text ? ` - ${text}` : "";
-      throw new Error(`Grafana API error: ${response.status} ${response.statusText}${details}`);
+      const safeQuery = truncateForLog(query, 400);
+      throw new Error(
+        `Grafana API error: ${response.status} ${response.statusText}${details}. Query: ${safeQuery}`
+      );
     }
 
     const alerts = (await response.json()) as GrafanaAlert[];
@@ -272,4 +275,11 @@ export function normalizeLokiSelector(selector?: string): string {
     .filter((part) => part.length > 0)
     .join(",");
   return cleaned.length > 0 ? `{${cleaned}}` : "{}";
+}
+
+function truncateForLog(value: string, limit: number): string {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit - 3)}...`;
 }
