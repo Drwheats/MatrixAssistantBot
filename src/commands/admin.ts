@@ -784,24 +784,27 @@ async function derivePattern(ctx: CommandContext, sample: string): Promise<strin
   if (ctx.llmStudio && ctx.isAllowedUser) {
     try {
       const systemPrompt =
-        "You are a sysadmin and network monitoring specialist. You have been given a log that has significance and you need to monitor for similar logs. Create a regex to search for similar logs ignoring things like dates, ports and ids and focusing on the keywords in this log";
+        "You are a sysadmin and network monitoring specialist. You must create a short regex that matches similar logs while ignoring timestamps, numeric ids, ports, and IP addresses. Focus on the stable keywords and phrasing.";
       const userPrompt = [
         "Return ONLY the regex pattern. No prose, no JSON, no markdown.",
         "The pattern should be a safe regex fragment for Loki's |~ operator, without slashes.",
-        "Keep it short (<= 120 chars) and target the meaningful part of the message.",
+        "Keep it short (<= 120 chars) and target only the meaningful part of the message.",
+        "Do NOT include dates/timestamps, bracketed ids, ports, or IPs in the pattern.",
+        'Example: for "Accepted password for mushroom from 192.168.0.1 port 2222" output "Accepted password for mushroom".',
         `Log line: ${sample}`
       ].join("\n");
       const reply = await ctx.llmStudio.chat(userPrompt, systemPrompt);
       const parsed = extractPattern(reply);
       if (parsed) {
-        return parsed;
+        return postProcessPattern(parsed);
       }
     } catch {
       // fall back to heuristic
     }
   }
 
-  return heuristicPattern(sample);
+  const heuristic = heuristicPattern(sample);
+  return heuristic ? postProcessPattern(heuristic) : null;
 }
 
 function extractPattern(raw: string): string | null {
@@ -837,6 +840,20 @@ function trimPattern(value: string): string | null {
     return trimmed.slice(0, 120);
   }
   return trimmed;
+}
+
+function postProcessPattern(pattern: string): string {
+  let text = pattern;
+  text = text.replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/g, "");
+  text = text.replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, "");
+  text = text.replace(/\bport\s+\d+\b/gi, "port");
+  text = text.replace(/\[\d+\]/g, "");
+  text = text.replace(/\b\d+\b/g, "");
+  text = text.replace(/\s{2,}/g, " ").trim();
+  if (text.length === 0) {
+    return pattern;
+  }
+  return text.length > 120 ? text.slice(0, 120) : text;
 }
 
 function heuristicPattern(sample: string): string | null {
