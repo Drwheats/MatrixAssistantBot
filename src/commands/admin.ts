@@ -1,6 +1,7 @@
 import { CommandContext } from "../types/commandContext";
 import { env } from "../config/env";
 import { normalizeLabelSelector, normalizePromptCommand, normalizePromptText } from "../services/botConfig";
+import { startLlmReactions } from "../utils/llmReactions";
 import { BotState } from "../services/botStateStore";
 
 const ADMIN_PREFIX = "!admin";
@@ -557,7 +558,12 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
   const { first: container, second: sample } = parsed;
   const safeContainer = container.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   const selector = `{container="${safeContainer}"}`;
+  const reactionTargetId = ctx.eventId ?? null;
+  const reactions = reactionTargetId ? startLlmReactions(ctx, reactionTargetId) : null;
   const pattern = await derivePattern(ctx, sample);
+  if (reactions) {
+    await reactions.finish();
+  }
   if (!pattern) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
