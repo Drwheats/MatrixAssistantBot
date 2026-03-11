@@ -41,6 +41,8 @@ const envSchema = z.object({
   LLM_STUDIO_TEMPERATURE: z.coerce.number().optional(),
   LLM_STUDIO_MAX_TOKENS: z.coerce.number().optional(),
   LLM_STUDIO_TIMEOUT_MS: z.coerce.number().optional(),
+  LLM_STUDIO_GLOBAL_PROMPT: z.string().optional(),
+  LLM_STUDIO_FACTCHECK_PROMPT: z.string().optional(),
 
   PORT: z.coerce.number().default(3000)
 });
@@ -86,5 +88,7 @@ export const env = {
   hasLlmStudioCredentials: !!parsed.data.LLM_STUDIO_MODEL,
   llmStudioTemperature: parsed.data.LLM_STUDIO_TEMPERATURE ?? 0.2,
   llmStudioMaxTokens: parsed.data.LLM_STUDIO_MAX_TOKENS ?? 700,
-  llmStudioTimeoutMs: parsed.data.LLM_STUDIO_TIMEOUT_MS ?? 30_000
+  llmStudioTimeoutMs: parsed.data.LLM_STUDIO_TIMEOUT_MS ?? 30_000,
+  llmStudioGlobalPrompt: parsed.data.LLM_STUDIO_GLOBAL_PROMPT,
+  llmStudioFactcheckPrompt: parsed.data.LLM_STUDIO_FACTCHECK_PROMPT
 };

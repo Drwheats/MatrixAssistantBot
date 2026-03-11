@@ -1,6 +1,6 @@
 import { CommandContext } from "../types/commandContext";
 import { env } from "../config/env";
-import { normalizePromptCommand } from "../services/botConfig";
+import { normalizePromptCommand, normalizePromptText } from "../services/botConfig";
 
 const ADMIN_PREFIX = "!admin";
 
@@ -45,6 +45,16 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
 
   if (args.toLowerCase().startsWith("open ")) {
     await handleOpenMode(ctx, args.slice("open ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase().startsWith("setglobalprompt ")) {
+    await handleSetGlobalPrompt(ctx, args.slice("setglobalprompt ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase().startsWith("setglobalfactcheckprompt ")) {
+    await handleSetGlobalFactcheckPrompt(ctx, args.slice("setglobalfactcheckprompt ".length).trim());
     return;
   }
 
@@ -201,12 +211,16 @@ async function handleOpenMode(ctx: CommandContext, arg: string): Promise<void> {
 async function handleStatus(ctx: CommandContext): Promise<void> {
   const allowedUsers = env.allowedUsers.length > 0 ? env.allowedUsers.join(", ") : "(none)";
   const extraUsers = ctx.botConfig.extraAllowedUsers.length > 0 ? ctx.botConfig.extraAllowedUsers.join(", ") : "(none)";
+  const globalPrompt = ctx.botConfig.globalPrompt ? "set" : "(unset)";
+  const globalFactcheckPrompt = ctx.botConfig.globalFactcheckPrompt ? "set" : "(unset)";
   const lines = [
     `Bot display name: ${ctx.botConfig.botDisplayName ?? "(unchanged)"}`,
     `Prompt command: ${ctx.botConfig.promptCommand}`,
     `Open mode: ${ctx.botConfig.openMode ? "ON" : "OFF"}`,
     `Admin users (.env): ${allowedUsers}`,
-    `Extra allowed users: ${extraUsers}`
+    `Extra allowed users: ${extraUsers}`,
+    `Global prompt: ${globalPrompt}`,
+    `Global factcheck prompt: ${globalFactcheckPrompt}`
   ];
 
   await ctx.client.sendMessage(ctx.roomId, {
@@ -223,6 +237,8 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin allow @user:server - allow a new user",
     "!admin deny @user:server - revoke a user",
     "!admin open on|off|status - toggle open mode",
+    '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
+    '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
     "!admin status - show current settings"
   ];
 
@@ -279,4 +295,58 @@ function normalizeUserId(value: string): string | null {
     return null;
   }
   return trimmed;
+}
+
+async function handleSetGlobalPrompt(ctx: CommandContext, rawPrompt: string): Promise<void> {
+  const parsed = parsePromptInput(rawPrompt);
+  if (parsed === null) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: 'Usage: !admin setglobalprompt "PROMPT" (or !admin setglobalprompt clear)'
+    });
+    return;
+  }
+
+  await ctx.stateStore.save({ globalPrompt: parsed });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: parsed ? "Global prompt updated." : "Global prompt cleared."
+  });
+}
+
+async function handleSetGlobalFactcheckPrompt(ctx: CommandContext, rawPrompt: string): Promise<void> {
+  const parsed = parsePromptInput(rawPrompt);
+  if (parsed === null) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: 'Usage: !admin setglobalfactcheckprompt "PROMPT" (or !admin setglobalfactcheckprompt clear)'
+    });
+    return;
+  }
+
+  await ctx.stateStore.save({ globalFactcheckPrompt: parsed });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: parsed ? "Global factcheck prompt updated." : "Global factcheck prompt cleared."
+  });
+}
+
+function parsePromptInput(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.toLowerCase() === "clear") {
+    return "";
+  }
+  if (trimmed.startsWith("\"")) {
+    const match = trimmed.match(/^"([\s\S]+)"$/);
+    if (!match) {
+      return null;
+    }
+    const normalized = normalizePromptText(match[1]);
+    return normalized ?? "";
+  }
+  const normalized = normalizePromptText(trimmed);
+  return normalized ?? "";
 }

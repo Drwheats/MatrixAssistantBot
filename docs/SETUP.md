@@ -178,11 +178,17 @@ Required for:
    - Optional: `LLM_STUDIO_TEMPERATURE` (default 0.2)
    - Optional: `LLM_STUDIO_MAX_TOKENS` (default 700)
    - Optional: `LLM_STUDIO_TIMEOUT_MS` (default 30000)
+   - Optional: `LLM_STUDIO_GLOBAL_PROMPT` (system prompt applied to all LLM requests)
+   - Optional: `LLM_STUDIO_FACTCHECK_PROMPT` (system prompt for factchecks)
 
 Test in room:
 
 - `!blimpf Write a one-sentence summary of this channel.`
 - Reply to any message with `!factcheck`
+
+Admin prompt overrides:
+- `!admin setglobalprompt "PROMPT"`
+- `!admin setglobalfactcheckprompt "PROMPT"`
 
 ## Step 9: Run bot
 

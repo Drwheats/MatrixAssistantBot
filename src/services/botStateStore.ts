@@ -12,6 +12,8 @@ export interface BotState {
   promptCommand?: string;
   openMode?: boolean;
   extraAllowedUsers: string[];
+  globalPrompt?: string;
+  globalFactcheckPrompt?: string;
 }
 
 const DEFAULT_STATE: BotState = {
@@ -42,7 +44,10 @@ export class BotStateStore {
         botDisplayName: typeof parsed.botDisplayName === "string" ? parsed.botDisplayName : undefined,
         promptCommand: typeof parsed.promptCommand === "string" ? parsed.promptCommand : undefined,
         openMode: typeof parsed.openMode === "boolean" ? parsed.openMode : undefined,
-        extraAllowedUsers: Array.isArray(parsed.extraAllowedUsers) ? parsed.extraAllowedUsers : []
+        extraAllowedUsers: Array.isArray(parsed.extraAllowedUsers) ? parsed.extraAllowedUsers : [],
+        globalPrompt: typeof parsed.globalPrompt === "string" ? parsed.globalPrompt : undefined,
+        globalFactcheckPrompt:
+          typeof parsed.globalFactcheckPrompt === "string" ? parsed.globalFactcheckPrompt : undefined
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -65,7 +70,9 @@ export class BotStateStore {
       botDisplayName: state.botDisplayName ?? current.botDisplayName,
       promptCommand: state.promptCommand ?? current.promptCommand,
       openMode: state.openMode ?? current.openMode,
-      extraAllowedUsers: extraAllowedUsers ?? current.extraAllowedUsers ?? []
+      extraAllowedUsers: extraAllowedUsers ?? current.extraAllowedUsers ?? [],
+      globalPrompt: state.globalPrompt ?? current.globalPrompt,
+      globalFactcheckPrompt: state.globalFactcheckPrompt ?? current.globalFactcheckPrompt
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");

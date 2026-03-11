@@ -25,7 +25,7 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
   const reactions = reactionTargetId ? startBlimpfReactions(ctx, reactionTargetId) : null;
 
   try {
-    const reply = await ctx.llmStudio.chat(prompt);
+    const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt);
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
       body: reply
@@ -89,25 +89,17 @@ export async function handleFactcheckReplyMessage(
 
   const repliedBody = String(repliedEvent?.content?.body ?? "").trim();
   if (!repliedBody) {
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: "The replied-to message has no text to fact check."
-    });
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, "The replied-to message has no text to fact check.");
     return true;
   }
 
   try {
-    const reply = await ctx.llmStudio.chat(repliedBody, FACTCHECK_SYSTEM_PROMPT);
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: reply
-    });
+    const systemPrompt = ctx.botConfig.globalFactcheckPrompt ?? FACTCHECK_SYSTEM_PROMPT;
+    const reply = await ctx.llmStudio.chat(repliedBody, systemPrompt);
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `LLM Studio error: ${message}`
-    });
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, `LLM Studio error: ${message}`);
   }
 
   return true;
@@ -185,6 +177,26 @@ async function redactReaction(ctx: CommandContext, reactionEventId: string): Pro
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sendReply(ctx: CommandContext, eventId: string | undefined, body: string): Promise<void> {
+  if (!eventId) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body
+    });
+    return;
+  }
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body,
+    "m.relates_to": {
+      "m.in_reply_to": {
+        event_id: eventId
+      }
+    }
+  });
 }
 
 function escapeRegExp(value: string): string {

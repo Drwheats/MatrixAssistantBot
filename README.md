@@ -64,6 +64,10 @@ Reply to the bot's card-created message to append your reply text to the Trello 
 Integration commands require credentials in `.env`.
 Admin commands require the user to be listed in `MATRIX_ALLOWED_USERS`.
 
+LLM Studio supports optional global prompts via:
+- `LLM_STUDIO_GLOBAL_PROMPT`
+- `LLM_STUDIO_FACTCHECK_PROMPT`
+
 ## 4. Configuration
 
 All settings go in `.env`.

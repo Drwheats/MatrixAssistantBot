@@ -6,6 +6,8 @@ export interface BotRuntimeConfig {
   promptCommand: string;
   openMode: boolean;
   extraAllowedUsers: string[];
+  globalPrompt?: string;
+  globalFactcheckPrompt?: string;
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
@@ -13,11 +15,18 @@ export const DEFAULT_PROMPT_COMMAND = "!blimpf";
 export async function loadBotConfig(stateStore: BotStateStore): Promise<BotRuntimeConfig> {
   const state = await stateStore.load();
   const promptCommand = normalizePromptCommand(state.promptCommand) ?? DEFAULT_PROMPT_COMMAND;
+  const globalPrompt =
+    normalizePromptText(state.globalPrompt) ?? normalizePromptText(env.llmStudioGlobalPrompt);
+  const globalFactcheckPrompt =
+    normalizePromptText(state.globalFactcheckPrompt) ??
+    normalizePromptText(env.llmStudioFactcheckPrompt);
   return {
     botDisplayName: state.botDisplayName,
     promptCommand,
     openMode: state.openMode ?? false,
-    extraAllowedUsers: Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : []
+    extraAllowedUsers: Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : [],
+    globalPrompt,
+    globalFactcheckPrompt
   };
 }
 
@@ -56,4 +65,12 @@ export function normalizePromptCommand(command?: string): string | null {
     return null;
   }
   return trimmed;
+}
+
+export function normalizePromptText(prompt?: string): string | undefined {
+  if (typeof prompt !== "string") {
+    return undefined;
+  }
+  const trimmed = prompt.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
