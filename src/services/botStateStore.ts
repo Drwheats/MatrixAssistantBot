@@ -10,12 +10,17 @@ export interface BotState {
   onePasswordSigninCursor?: string;
   onePasswordSigninInitializedAt?: string;
   onePasswordSigninSeenIds: string[];
+  botDisplayName?: string;
+  promptCommand?: string;
+  openMode?: boolean;
+  extraAllowedUsers: string[];
 }
 
 const DEFAULT_STATE: BotState = {
   sentReminderKeys: [],
   securityLoginSeenKeys: [],
-  onePasswordSigninSeenIds: []
+  onePasswordSigninSeenIds: [],
+  extraAllowedUsers: []
 };
 
 export class BotStateStore {
@@ -38,7 +43,11 @@ export class BotStateStore {
         onePasswordSigninCursor: typeof parsed.onePasswordSigninCursor === "string" ? parsed.onePasswordSigninCursor : undefined,
         onePasswordSigninInitializedAt:
           typeof parsed.onePasswordSigninInitializedAt === "string" ? parsed.onePasswordSigninInitializedAt : undefined,
-        onePasswordSigninSeenIds: Array.isArray(parsed.onePasswordSigninSeenIds) ? parsed.onePasswordSigninSeenIds : []
+        onePasswordSigninSeenIds: Array.isArray(parsed.onePasswordSigninSeenIds) ? parsed.onePasswordSigninSeenIds : [],
+        botDisplayName: typeof parsed.botDisplayName === "string" ? parsed.botDisplayName : undefined,
+        promptCommand: typeof parsed.promptCommand === "string" ? parsed.promptCommand : undefined,
+        openMode: typeof parsed.openMode === "boolean" ? parsed.openMode : undefined,
+        extraAllowedUsers: Array.isArray(parsed.extraAllowedUsers) ? parsed.extraAllowedUsers : []
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -58,7 +67,11 @@ export class BotStateStore {
         state.onePasswordSigninInitializedAt,
         current.onePasswordSigninInitializedAt
       ),
-      onePasswordSigninSeenIds: mergeUnique(current.onePasswordSigninSeenIds, state.onePasswordSigninSeenIds, 5000)
+      onePasswordSigninSeenIds: mergeUnique(current.onePasswordSigninSeenIds, state.onePasswordSigninSeenIds, 5000),
+      botDisplayName: state.botDisplayName ?? current.botDisplayName,
+      promptCommand: state.promptCommand ?? current.promptCommand,
+      openMode: state.openMode ?? current.openMode,
+      extraAllowedUsers: state.extraAllowedUsers ?? current.extraAllowedUsers ?? []
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");

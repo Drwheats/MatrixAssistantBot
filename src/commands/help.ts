@@ -1,6 +1,7 @@
 import { CommandContext } from "../types/commandContext";
 
 export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
+  const promptCommand = ctx.botConfig.promptCommand;
   const lines = [
     "Available commands:",
     "!ping - health check",
@@ -17,9 +18,21 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     '!grafana service "NAME" [window] - service health snapshot',
     "!grafana spikes [window] - compare current/previous error rates",
     '!grafana query "LOKI_QUERY" [window] - run a raw Loki query',
-    "!blimpf PROMPT - send a prompt to LLM Studio",
+    `${promptCommand} PROMPT - send a prompt to LLM Studio`,
     "!factcheck - reply to a message with this to fact check it"
   ];
+
+  if (ctx.isAdminUser) {
+    lines.push(
+      "",
+      "Admin commands:",
+      '!admin rename "NAME" [!command] - rename the bot and optionally the prompt command',
+      "!admin command !name - set the prompt command",
+      "!admin allow @user:server - allow a new user",
+      "!admin deny @user:server - revoke a user",
+      "!admin open on|off|status - toggle open mode"
+    );
+  }
 
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",

@@ -11,11 +11,12 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  const prompt = extractPrompt(ctx.commandBody, "!blimpf");
+  const promptCommand = ctx.botConfig.promptCommand;
+  const prompt = extractPrompt(ctx.commandBody, promptCommand);
   if (!prompt) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
-      body: "Usage: !blimpf PROMPT"
+      body: `Usage: ${promptCommand} PROMPT`
     });
     return;
   }
@@ -113,7 +114,8 @@ export async function handleFactcheckReplyMessage(
 }
 
 function extractPrompt(commandBody: string, command: string): string | null {
-  const match = commandBody.match(new RegExp(`^${command}\\s+([\\s\\S]+)$`, "i"));
+  const escaped = escapeRegExp(command);
+  const match = commandBody.match(new RegExp(`^${escaped}\\s+([\\s\\S]+)$`, "i"));
   if (!match) {
     return null;
   }
@@ -142,7 +144,7 @@ function startBlimpfReactions(ctx: CommandContext, eventId: string) {
       }
       thinkingReactionId = await sendReaction(ctx, eventId, "🤔💭");
     } catch (error) {
-      console.warn("Failed to manage !blimpf reactions:", error);
+      console.warn(`Failed to manage ${ctx.botConfig.promptCommand} reactions:`, error);
     }
   })();
 
@@ -183,4 +185,8 @@ async function redactReaction(ctx: CommandContext, reactionEventId: string): Pro
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

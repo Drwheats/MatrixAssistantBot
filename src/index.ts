@@ -7,6 +7,7 @@ import { routeCommand } from "./commands/router";
 import { handleTrelloReplyDescriptionMessage } from "./commands/trello";
 import { handleFactcheckReplyMessage } from "./commands/llmStudio";
 import { BotStateStore } from "./services/botStateStore";
+import { isAdminUser, isAllowedUser, loadBotConfig } from "./services/botConfig";
 import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
@@ -52,7 +53,9 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
   }
 
   const body = String(event.content.body ?? "").trim();
-  const isAllowedUser = env.allowedUsers.length === 0 || env.allowedUsers.includes(sender);
+  const botConfig = await loadBotConfig(stateStore);
+  const isAllowedUserFlag = isAllowedUser(sender, botConfig);
+  const isAdminUserFlag = isAdminUser(sender);
 
   const handledReply = await handleTrelloReplyDescriptionMessage(
     {
@@ -61,7 +64,10 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       sender,
       eventId: event?.event_id,
       commandBody: body,
-      isAllowedUser,
+      isAllowedUser: isAllowedUserFlag,
+      isAdminUser: isAdminUserFlag,
+      botConfig,
+      stateStore,
       googleCalendar,
       trello,
       grafana,
@@ -80,7 +86,10 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       sender,
       eventId: event?.event_id,
       commandBody: body,
-      isAllowedUser,
+      isAllowedUser: isAllowedUserFlag,
+      isAdminUser: isAdminUserFlag,
+      botConfig,
+      stateStore,
       googleCalendar,
       trello,
       grafana,
@@ -102,7 +111,10 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     sender,
     eventId: event?.event_id,
     commandBody: body,
-    isAllowedUser,
+    isAllowedUser: isAllowedUserFlag,
+    isAdminUser: isAdminUserFlag,
+    botConfig,
+    stateStore,
     googleCalendar,
     trello,
     grafana,
