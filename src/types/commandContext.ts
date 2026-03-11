@@ -8,6 +8,7 @@ export interface CommandContext {
   client: MatrixClient;
   roomId: string;
   sender: string;
+  eventId?: string;
   commandBody: string;
   isAllowedUser: boolean;
   googleCalendar: GoogleCalendarConnector;

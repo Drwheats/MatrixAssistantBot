@@ -1,14 +1,10 @@
 import { env } from "../config/env";
 
 interface ChatCompletionResponse {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
+  output?: string;
+  message?: { content?: string };
+  choices?: Array<{ message?: { content?: string } }>;
+  error?: { message?: string } | string;
 }
 
 export class LlmStudioConnector {
@@ -17,24 +13,23 @@ export class LlmStudioConnector {
       throw new Error("LLM Studio is not configured.");
     }
 
-    const messages = [];
-    if (systemPrompt) {
-      messages.push({ role: "system", content: systemPrompt });
-    }
-    messages.push({ role: "user", content: prompt });
+    const body: Record<string, unknown> = {
+      model: env.LLM_STUDIO_MODEL,
+      ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
+      input: prompt
+    };
 
-    const response = await fetch(buildChatCompletionsUrl(), {
+    if (typeof env.llmStudioTemperature === "number") {
+      body.temperature = env.llmStudioTemperature;
+    }
+
+    const response = await fetch(buildChatUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(env.LLM_STUDIO_API_KEY ? { Authorization: `Bearer ${env.LLM_STUDIO_API_KEY}` } : {})
       },
-      body: JSON.stringify({
-        model: env.LLM_STUDIO_MODEL,
-        messages,
-        temperature: env.llmStudioTemperature,
-        max_tokens: env.llmStudioMaxTokens
-      }),
+      body: JSON.stringify(body),
       signal: timeoutSignal(env.llmStudioTimeoutMs)
     });
 
@@ -44,11 +39,12 @@ export class LlmStudioConnector {
     }
 
     const data = (await response.json()) as ChatCompletionResponse;
-    if (data.error?.message) {
-      throw new Error(`LLM Studio error: ${data.error.message}`);
+    if (data.error) {
+      const message = typeof data.error === "string" ? data.error : data.error.message ?? "Unknown error";
+      throw new Error(`LLM Studio error: ${message}`);
     }
 
-    const content = data.choices?.[0]?.message?.content?.trim();
+    const content = extractContent(data);
     if (!content) {
       throw new Error("LLM Studio returned an empty response.");
     }
@@ -57,12 +53,60 @@ export class LlmStudioConnector {
   }
 }
 
-function buildChatCompletionsUrl(): string {
+function buildChatUrl(): string {
   const base = env.LLM_STUDIO_BASE_URL.replace(/\/+$/, "");
-  if (base.endsWith("/v1")) {
-    return `${base}/chat/completions`;
+  if (base.endsWith("/api/v1/chat")) {
+    return base;
   }
-  return `${base}/v1/chat/completions`;
+  if (base.endsWith("/api/v1")) {
+    return `${base}/chat`;
+  }
+  if (base.endsWith("/api")) {
+    return `${base}/v1/chat`;
+  }
+  return `${base}/api/v1/chat`;
+}
+
+function extractContent(data: ChatCompletionResponse): string | null {
+  if (typeof data.output === "string") {
+    return data.output.trim();
+  }
+
+  if (Array.isArray(data.output)) {
+    const parts = data.output
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item && typeof item === "object") {
+          const record = item as Record<string, unknown>;
+          if (typeof record.content === "string") {
+            return record.content;
+          }
+          if (typeof record.text === "string") {
+            return record.text;
+          }
+        }
+        return "";
+      })
+      .join("");
+    const trimmed = parts.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+
+  const message = data.message?.content?.trim();
+  if (message) {
+    return message;
+  }
+
+  const choice = data.choices?.[0]?.message?.content?.trim();
+  if (choice) {
+    return choice;
+  }
+
+  return null;
 }
 
 function timeoutSignal(timeoutMs: number): AbortSignal {

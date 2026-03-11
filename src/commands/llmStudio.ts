@@ -20,6 +20,9 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  const reactionTargetId = ctx.eventId ?? null;
+  const reactions = reactionTargetId ? startBlimpfReactions(ctx, reactionTargetId) : null;
+
   try {
     const reply = await ctx.llmStudio.chat(prompt);
     await ctx.client.sendMessage(ctx.roomId, {
@@ -32,6 +35,10 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
       msgtype: "m.text",
       body: `LLM Studio error: ${message}`
     });
+  } finally {
+    if (reactions) {
+      await reactions.finish();
+    }
   }
 }
 
@@ -119,4 +126,61 @@ function getReplyToEventId(event: Record<string, any>): string | null {
   const inReplyTo = relatesTo?.["m.in_reply_to"];
   const eventId = inReplyTo?.event_id;
   return typeof eventId === "string" ? eventId : null;
+}
+
+function startBlimpfReactions(ctx: CommandContext, eventId: string) {
+  let eyeReactionId: string | null = null;
+  let thinkingReactionId: string | null = null;
+
+  const swapPromise = (async () => {
+    try {
+      eyeReactionId = await sendReaction(ctx, eventId, "👀");
+      await sleep(1000);
+      if (eyeReactionId) {
+        await redactReaction(ctx, eyeReactionId);
+        eyeReactionId = null;
+      }
+      thinkingReactionId = await sendReaction(ctx, eventId, "🤔💭");
+    } catch (error) {
+      console.warn("Failed to manage !blimpf reactions:", error);
+    }
+  })();
+
+  return {
+    async finish(): Promise<void> {
+      await swapPromise;
+      if (thinkingReactionId) {
+        await redactReaction(ctx, thinkingReactionId);
+        thinkingReactionId = null;
+      }
+    }
+  };
+}
+
+async function sendReaction(ctx: CommandContext, eventId: string, key: string): Promise<string | null> {
+  try {
+    const reactionEventId = await ctx.client.sendEvent(ctx.roomId, "m.reaction", {
+      "m.relates_to": {
+        rel_type: "m.annotation",
+        event_id: eventId,
+        key
+      }
+    });
+    return reactionEventId;
+  } catch (error) {
+    console.warn(`Failed to send reaction ${key}:`, error);
+    return null;
+  }
+}
+
+async function redactReaction(ctx: CommandContext, reactionEventId: string): Promise<void> {
+  try {
+    await ctx.client.redactEvent(ctx.roomId, reactionEventId);
+  } catch (error) {
+    console.warn("Failed to remove reaction:", error);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -4,6 +4,7 @@ A Matrix bot that responds to chat commands and can pull data from:
 - Google Calendar (`!calendar today`)
 - Trello (`!trello due`)
 - Grafana (`!grafana critical`, `!grafana alerts`, `!grafana incident`)
+- LLM Studio (`!blimpf`, `!factcheck`)
 - Grafana security login alerts (optional, posts SSH password logins to Grafana Alerts room)
 - 1Password sign-in alerts (optional, posts successful sign-ins to Grafana Alerts room)
 
@@ -48,6 +49,8 @@ npm start
 - `!grafana service "NAME" [window]`
 - `!grafana spikes [window]`
 - `!grafana query "LOKI_QUERY" [window]`
+- `!blimpf PROMPT`
+- `!factcheck` (reply to a message)
 
 `!trello create` supports natural dates like `tomorrow`, `end of week`, `next friday`, `in 3 days`, `the 15th`, and `15`.
 Reply to the bot's card-created message to append your reply text to the Trello card description.

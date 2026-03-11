@@ -142,7 +142,30 @@ Test in room:
 
 When enabled, the bot will post SSH password login logs to the private `Grafana Alerts` room as they appear.
 
-## Step 8: Configure 1Password Events API (optional)
+## Step 8: Configure LLM Studio (optional)
+
+Required for:
+- `!blimpf PROMPT`
+- `!factcheck` (reply to a message)
+
+1. Run LLM Studio and enable the OpenAI-compatible API server.
+2. Choose the base URL the bot can reach:
+   - If the bot runs on the same machine as LLM Studio, use `http://127.0.0.1:1234`
+   - If the bot runs on another machine, use your LAN IP (example `http://192.168.2.61:1234`)
+3. Put these in `.env`:
+   - `LLM_STUDIO_BASE_URL` (example `http://127.0.0.1:1234` or `http://192.168.2.61:1234`)
+   - `LLM_STUDIO_MODEL` (model name loaded in LLM Studio, required)
+   - Optional: `LLM_STUDIO_API_KEY` (if you enabled auth in LLM Studio)
+   - Optional: `LLM_STUDIO_TEMPERATURE` (default 0.2)
+   - Optional: `LLM_STUDIO_MAX_TOKENS` (default 700)
+   - Optional: `LLM_STUDIO_TIMEOUT_MS` (default 30000)
+
+Test in room:
+
+- `!blimpf Write a one-sentence summary of this channel.`
+- Reply to any message with `!factcheck`
+
+## Step 9: Configure 1Password Events API (optional)
 
 Use this to post successful 1Password sign-ins to the `Grafana Alerts` room.
 
@@ -157,7 +180,7 @@ Use this to post successful 1Password sign-ins to the `Grafana Alerts` room.
 
 The bot only reports successful sign-ins and does not require access to vault data.
 
-## Step 9: Run bot
+## Step 10: Run bot
 
 Development:
 
