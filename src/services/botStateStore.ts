@@ -14,13 +14,39 @@ export interface BotState {
   extraAllowedUsers: string[];
   globalPrompt?: string;
   globalFactcheckPrompt?: string;
+  qbittorrentLabelSelector?: string;
+  monitors: MonitorDefinition[];
+  monitorSeenKeys: Record<string, string[]>;
+  monitorHistory: MonitorHistoryEntry[];
+  monitorReviewTargets: Record<string, string[]>;
+  monitorLastList: Record<string, string[]>;
+}
+
+export interface MonitorDefinition {
+  id: string;
+  name: string;
+  selector: string;
+  pattern: string;
+  createdAt: string;
+}
+
+export interface MonitorHistoryEntry {
+  id: string;
+  name: string;
+  command: string;
+  createdAt: string;
 }
 
 const DEFAULT_STATE: BotState = {
   sentReminderKeys: [],
   securityLoginSeenKeys: [],
   qbittorrentSeenKeys: [],
-  extraAllowedUsers: []
+  extraAllowedUsers: [],
+  monitors: [],
+  monitorSeenKeys: {},
+  monitorHistory: [],
+  monitorReviewTargets: {},
+  monitorLastList: {}
 };
 
 export class BotStateStore {
@@ -47,7 +73,18 @@ export class BotStateStore {
         extraAllowedUsers: Array.isArray(parsed.extraAllowedUsers) ? parsed.extraAllowedUsers : [],
         globalPrompt: typeof parsed.globalPrompt === "string" ? parsed.globalPrompt : undefined,
         globalFactcheckPrompt:
-          typeof parsed.globalFactcheckPrompt === "string" ? parsed.globalFactcheckPrompt : undefined
+          typeof parsed.globalFactcheckPrompt === "string" ? parsed.globalFactcheckPrompt : undefined,
+        qbittorrentLabelSelector:
+          typeof parsed.qbittorrentLabelSelector === "string" ? parsed.qbittorrentLabelSelector : undefined,
+        monitors: Array.isArray(parsed.monitors) ? (parsed.monitors as MonitorDefinition[]) : [],
+        monitorSeenKeys: isRecordOfStringArray(parsed.monitorSeenKeys) ? parsed.monitorSeenKeys : {},
+        monitorHistory: Array.isArray(parsed.monitorHistory)
+          ? (parsed.monitorHistory as MonitorHistoryEntry[])
+          : [],
+        monitorReviewTargets: isRecordOfStringArray(parsed.monitorReviewTargets)
+          ? parsed.monitorReviewTargets
+          : {},
+        monitorLastList: isRecordOfStringArray(parsed.monitorLastList) ? parsed.monitorLastList : {}
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -60,6 +97,13 @@ export class BotStateStore {
     const securityLoginSeenKeys = Array.isArray(state.securityLoginSeenKeys) ? state.securityLoginSeenKeys : [];
     const qbittorrentSeenKeys = Array.isArray(state.qbittorrentSeenKeys) ? state.qbittorrentSeenKeys : [];
     const extraAllowedUsers = Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : undefined;
+    const monitors = Array.isArray(state.monitors) ? state.monitors : undefined;
+    const monitorSeenKeys = isRecordOfStringArray(state.monitorSeenKeys) ? state.monitorSeenKeys : undefined;
+    const monitorHistory = Array.isArray(state.monitorHistory) ? state.monitorHistory : undefined;
+    const monitorReviewTargets = isRecordOfStringArray(state.monitorReviewTargets)
+      ? state.monitorReviewTargets
+      : undefined;
+    const monitorLastList = isRecordOfStringArray(state.monitorLastList) ? state.monitorLastList : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -72,7 +116,13 @@ export class BotStateStore {
       openMode: state.openMode ?? current.openMode,
       extraAllowedUsers: extraAllowedUsers ?? current.extraAllowedUsers ?? [],
       globalPrompt: state.globalPrompt ?? current.globalPrompt,
-      globalFactcheckPrompt: state.globalFactcheckPrompt ?? current.globalFactcheckPrompt
+      globalFactcheckPrompt: state.globalFactcheckPrompt ?? current.globalFactcheckPrompt,
+      qbittorrentLabelSelector: state.qbittorrentLabelSelector ?? current.qbittorrentLabelSelector,
+      monitors: monitors ?? current.monitors ?? [],
+      monitorSeenKeys: monitorSeenKeys ?? current.monitorSeenKeys ?? {},
+      monitorHistory: monitorHistory ?? current.monitorHistory ?? [],
+      monitorReviewTargets: monitorReviewTargets ?? current.monitorReviewTargets ?? {},
+      monitorLastList: monitorLastList ?? current.monitorLastList ?? {}
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
@@ -99,4 +149,16 @@ function latestISO(primary?: string, fallback?: string): string | undefined {
   }
 
   return primary ?? fallback;
+}
+
+function isRecordOfStringArray(value: unknown): value is Record<string, string[]> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  for (const entry of Object.values(value)) {
+    if (!Array.isArray(entry)) {
+      return false;
+    }
+  }
+  return true;
 }

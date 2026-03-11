@@ -8,6 +8,8 @@ const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_LOOKBACK_MS = 5 * 60_000;
 const DEFAULT_LIMIT = 50;
 const DEFAULT_DEDUPE_LIMIT = 2000;
+const DEFAULT_MAX_ALERTS_PER_POLL = 5;
+const DEFAULT_MIN_SECONDS_BETWEEN_ALERTS = 60;
 
 type QbittorrentEventType = "started" | "finished";
 
@@ -60,7 +62,7 @@ export class GrafanaQbittorrentAlertsService {
 
     this.isRunning = true;
     try {
-      const query = this.buildQuery();
+      const query = this.buildQuery(state);
       const lookbackMs = env.grafanaQbittorrentLookbackMs ?? DEFAULT_LOOKBACK_MS;
       const limit = env.grafanaQbittorrentLimit ?? DEFAULT_LIMIT;
       const logs = await this.grafana.queryLogs(query, lookbackMs, limit);
@@ -71,13 +73,50 @@ export class GrafanaQbittorrentAlertsService {
         return;
       }
 
-      for (const entry of fresh.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp))) {
+      const sorted = fresh.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      let sentCount = 0;
+      let suppressedCount = 0;
+      let lastSentAtMs: number | null = null;
+      let processedCount = 0;
+      for (const entry of sorted) {
+        processedCount += 1;
+        const entryMs = Date.parse(entry.timestamp);
+        const withinMinute =
+          Number.isFinite(entryMs) &&
+          lastSentAtMs !== null &&
+          entryMs - lastSentAtMs < DEFAULT_MIN_SECONDS_BETWEEN_ALERTS * 1000;
+        if (withinMinute) {
+          suppressedCount += 1;
+          seen.add(this.entryKey(entry.timestamp, entry.message));
+          continue;
+        }
+
         const body = this.formatAlert(entry);
         await this.client.sendMessage(roomId, {
           msgtype: "m.text",
           body
         });
+        sentCount += 1;
+        lastSentAtMs = Number.isFinite(entryMs) ? entryMs : Date.now();
         seen.add(this.entryKey(entry.timestamp, entry.message));
+
+        if (sentCount >= DEFAULT_MAX_ALERTS_PER_POLL) {
+          break;
+        }
+      }
+
+      if (processedCount < sorted.length) {
+        for (const entry of sorted.slice(processedCount)) {
+          seen.add(this.entryKey(entry.timestamp, entry.message));
+        }
+      }
+
+      const hasMany = sorted.length > DEFAULT_MAX_ALERTS_PER_POLL;
+      if (hasMany) {
+        await this.client.sendMessage(roomId, {
+          msgtype: "m.text",
+          body: "and many more"
+        });
       }
 
       state.qbittorrentSeenKeys = [...seen];
@@ -90,12 +129,12 @@ export class GrafanaQbittorrentAlertsService {
     }
   }
 
-  private buildQuery(): string {
+  private buildQuery(state: BotState): string {
     const selector =
-      env.grafanaQbittorrentLabelSelector ??
+      state.qbittorrentLabelSelector ??
       env.GRAFANA_LOG_LABEL_SELECTOR ??
-      "{}";
-    return `${selector} |~ "(?i)added new torrent|torrent download finished"`;
+      '{container="qbittorrent",job="qbittorrent"}';
+    return `${selector} |~ "(?i)added new torrent|torrent download finished|file error alert"`;
   }
 
   private entryKey(timestamp: string, message: string): string {
@@ -106,11 +145,14 @@ export class GrafanaQbittorrentAlertsService {
     const parsed = this.extractEvent(entry.message);
     const name = parsed?.name ?? "Unknown torrent";
     const type = parsed?.type ?? "started";
+    if (type === "error") {
+      return `File error : ${name}`;
+    }
     const verb = type === "finished" ? "finished" : "started";
     return `Download ${verb} : ${name}`;
   }
 
-  private extractEvent(message: string): { type: QbittorrentEventType; name?: string } | null {
+  private extractEvent(message: string): { type: QbittorrentEventType | "error"; name?: string } | null {
     const added = message.match(/Added new torrent\. Torrent:\s*"([^"]+)"/i);
     if (added) {
       return { type: "started", name: added[1] };
@@ -121,12 +163,21 @@ export class GrafanaQbittorrentAlertsService {
       return { type: "finished", name: finished[1] };
     }
 
+    const error = message.match(/File error alert\. Torrent:\s*"([^"]+)"/i);
+    if (error) {
+      return { type: "error", name: error[1] };
+    }
+
     if (/Torrent download finished/i.test(message)) {
       return { type: "finished" };
     }
 
     if (/Added new torrent/i.test(message)) {
       return { type: "started" };
+    }
+
+    if (/File error alert/i.test(message)) {
+      return { type: "error" };
     }
 
     return null;

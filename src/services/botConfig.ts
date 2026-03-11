@@ -8,6 +8,7 @@ export interface BotRuntimeConfig {
   extraAllowedUsers: string[];
   globalPrompt?: string;
   globalFactcheckPrompt?: string;
+  qbittorrentLabelSelector?: string;
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
@@ -26,7 +27,8 @@ export async function loadBotConfig(stateStore: BotStateStore): Promise<BotRunti
     openMode: state.openMode ?? false,
     extraAllowedUsers: Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : [],
     globalPrompt,
-    globalFactcheckPrompt
+    globalFactcheckPrompt,
+    qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector)
   };
 }
 
@@ -72,5 +74,13 @@ export function normalizePromptText(prompt?: string): string | undefined {
     return undefined;
   }
   const trimmed = prompt.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function normalizeLabelSelector(selector?: string): string | undefined {
+  if (typeof selector !== "string") {
+    return undefined;
+  }
+  const trimmed = selector.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }

@@ -12,6 +12,7 @@ import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
 import { GrafanaQbittorrentAlertsService } from "./services/grafanaQbittorrentAlerts";
+import { GrafanaMonitorAlertsService } from "./services/grafanaMonitorAlerts";
 import { LlmStudioConnector } from "./connectors/llmStudio";
 
 LogService.setLevel(LogLevel.ERROR);
@@ -34,6 +35,12 @@ const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
   stateStore
 );
 const grafanaQbittorrentAlertsService = new GrafanaQbittorrentAlertsService(
+  client,
+  grafana,
+  grafanaAlertsChannelService,
+  stateStore
+);
+const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
   client,
   grafana,
   grafanaAlertsChannelService,
@@ -120,11 +127,65 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
   });
 });
 
+client.on("room.event", async (roomId: string, event: Record<string, any>) => {
+  if (!event || event.type !== "m.reaction") {
+    return;
+  }
+
+  const sender = event.sender as string;
+  if (!sender || sender === env.MATRIX_BOT_USER_ID) {
+    return;
+  }
+
+  if (!isAdminUser(sender)) {
+    return;
+  }
+
+  const relatesTo = event?.content?.["m.relates_to"];
+  const reactionKey = relatesTo?.key;
+  if (reactionKey !== "👎") {
+    return;
+  }
+
+  const targetEventId = relatesTo?.event_id;
+  if (!targetEventId) {
+    return;
+  }
+
+  const state = await stateStore.load();
+  const monitorIds = state.monitorReviewTargets[targetEventId];
+  if (!Array.isArray(monitorIds) || monitorIds.length === 0) {
+    return;
+  }
+
+  const remaining = state.monitors.filter((monitor) => !monitorIds.includes(monitor.id));
+  if (remaining.length === state.monitors.length) {
+    return;
+  }
+
+  state.monitors = remaining;
+  for (const id of monitorIds) {
+    delete state.monitorSeenKeys[id];
+  }
+  delete state.monitorReviewTargets[targetEventId];
+  await stateStore.save({
+    monitors: state.monitors,
+    monitorSeenKeys: state.monitorSeenKeys,
+    monitorReviewTargets: state.monitorReviewTargets
+  });
+
+  await client.sendMessage(roomId, {
+    msgtype: "m.text",
+    body: `Stopped monitoring ${monitorIds.length} item(s).`
+  });
+});
+
 async function main(): Promise<void> {
   await client.start();
   await grafanaAlertsChannelService.start();
   await grafanaSecurityLoginAlertsService.start();
   await grafanaQbittorrentAlertsService.start();
+  await grafanaMonitorAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }

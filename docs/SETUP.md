@@ -65,6 +65,8 @@ Admin command examples:
 - `!admin deny @friend:yourdomain.com`
 - `!admin open on`
 - `!admin open off`
+- `!admin showmonitoring 10`
+- `!admin unmonitor 3`
 
 ## Step 5: Configure Google Calendar (optional)
 
@@ -154,12 +156,15 @@ When enabled, the bot will post SSH password login logs to the private `Grafana 
 
 Optional qbittorrent download alerts (from Loki logs):
 - `GRAFANA_QBITTORRENT_ALERTS_ENABLED` (enable qbittorrent alerts)
-- `GRAFANA_QBITTORRENT_LABEL_SELECTOR` (label selector for qbittorrent logs, e.g. `{app="qbittorrent"}`)
 - `GRAFANA_QBITTORRENT_POLL_MS` (poll interval, default 15000)
 - `GRAFANA_QBITTORRENT_LOOKBACK_MS` (lookback window, default 300000)
 - `GRAFANA_QBITTORRENT_LIMIT` (max logs per poll, default 50)
 
 When enabled, the bot will post qbittorrent download start/finish events to the `Grafana Alerts` room.
+Default label selector is `{container="qbittorrent",job="qbittorrent"}`. You can override it via:
+- `!admin setqbitlabel "{container=\"qbittorrent\",host=\"mushroom\"}"`
+- `!admin addqbitlabel host=mushroom`
+- `!admin clearqbitlabel`
 
 ## Step 8: Configure LLM Studio (optional)
 

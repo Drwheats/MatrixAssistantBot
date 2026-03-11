@@ -57,6 +57,8 @@ npm start
 - `!admin deny @user:server`
 - `!admin open on|off|status`
 - `!admin status`
+- `!admin showmonitoring [N]`
+- `!admin unmonitor N`
 
 `!trello create` supports natural dates like `tomorrow`, `end of week`, `next friday`, `in 3 days`, `the 15th`, and `15`.
 Reply to the bot's card-created message to append your reply text to the Trello card description.
@@ -67,6 +69,10 @@ Admin commands require the user to be listed in `MATRIX_ALLOWED_USERS`.
 LLM Studio supports optional global prompts via:
 - `LLM_STUDIO_GLOBAL_PROMPT`
 - `LLM_STUDIO_FACTCHECK_PROMPT`
+
+Qbittorrent alerts use a default Loki label selector of `{container="qbittorrent",job="qbittorrent"}`.
+Override it with `!admin setqbitlabel "{container=\"qbittorrent\",host=\"mushroom\"}"` or add labels via
+`!admin addqbitlabel host=mushroom`.
 
 ## 4. Configuration
 

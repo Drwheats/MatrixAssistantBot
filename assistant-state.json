@@ -12,9 +12,18 @@
     "2026-03-10T17:53:47.252Z|2026-03-10T13:53:47.143093-04:00 mushroom sshd[746383]: Accepted password for mushroom from 192.168.68.64 port 44750 ssh2",
     "2026-03-10T17:53:54.766Z|2026-03-10T13:53:54.524974-04:00 mushroom sshd[746455]: Accepted password for mushroom from 192.168.68.64 port 44604 ssh2",
     "2026-03-10T17:55:42.256Z|2026-03-10T13:55:42.025600-04:00 mushroom sshd[747432]: Accepted password for mushroom from 192.168.68.64 port 38996 ssh2",
-    "2026-03-10T18:31:30.611Z|2026-03-10T14:31:30.461927-04:00 mushroom sshd[765928]: Accepted password for mushroom from 192.168.68.64 port 40922 ssh2"
+    "2026-03-10T18:31:30.611Z|2026-03-10T14:31:30.461927-04:00 mushroom sshd[765928]: Accepted password for mushroom from 192.168.68.64 port 40922 ssh2",
+    "2026-03-11T19:23:03.759Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T19:23:03.897Z|2026-03-11T15:23:03.759970-04:00 mushroom sshd[1547069]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T19:23:03.897Z|2026-03-11T15:23:03.752421-04:00 mushroom sshd[1547069]: Accepted password for mushroom from 192.168.68.64 port 45942 ssh2",
+    "2026-03-11T19:23:19.463Z|pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T19:23:19.688Z|2026-03-11T15:23:19.463474-04:00 mushroom sshd[1547249]: pam_unix(sshd:session): session opened for user mushroom(uid=1000) by (uid=0)",
+    "2026-03-11T19:23:19.688Z|2026-03-11T15:23:19.462176-04:00 mushroom sshd[1547249]: Accepted password for mushroom from 192.168.68.64 port 35040 ssh2"
   ],
+  "qbittorrentSeenKeys": [],
   "botDisplayName": "Blompf",
   "promptCommand": "!blompf",
-  "extraAllowedUsers": []
+  "extraAllowedUsers": [],
+  "monitors": [],
+  "monitorSeenKeys": {}
 }
