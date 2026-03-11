@@ -60,6 +60,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (args.toLowerCase().startsWith("setmonitorprompt ")) {
+    await handleSetMonitorPrompt(ctx, args.slice("setmonitorprompt ".length).trim());
+    return;
+  }
+
   if (args.toLowerCase().startsWith("setqbitlabel ")) {
     await handleSetQbitLabel(ctx, args.slice("setqbitlabel ".length).trim());
     return;
@@ -259,6 +264,7 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
   const extraUsers = ctx.botConfig.extraAllowedUsers.length > 0 ? ctx.botConfig.extraAllowedUsers.join(", ") : "(none)";
   const globalPrompt = ctx.botConfig.globalPrompt ? "set" : "(unset)";
   const globalFactcheckPrompt = ctx.botConfig.globalFactcheckPrompt ? "set" : "(unset)";
+  const monitorPrompt = ctx.botConfig.monitorPrompt ? "set" : "(unset)";
   const qbitLabel = ctx.botConfig.qbittorrentLabelSelector ?? "(default)";
   const lines = [
     `Bot display name: ${ctx.botConfig.botDisplayName ?? "(unchanged)"}`,
@@ -268,6 +274,7 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
     `Extra allowed users: ${extraUsers}`,
     `Global prompt: ${globalPrompt}`,
     `Global factcheck prompt: ${globalFactcheckPrompt}`,
+    `Monitor prompt: ${monitorPrompt}`,
     `Qbittorrent label selector: ${qbitLabel}`
   ];
 
@@ -287,6 +294,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin open on|off|status - toggle open mode",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
+    '!admin setmonitorprompt "PROMPT" - set monitor prompt (use "clear" to reset)',
     '!admin setqbitlabel "{label=\\"value\\"}" - set qbittorrent label selector',
     "!admin addqbitlabel key=value - add/overwrite a qbittorrent label selector pair",
     "!admin clearqbitlabel - reset qbittorrent label selector",
@@ -366,7 +374,7 @@ async function handleSetGlobalPrompt(ctx: CommandContext, rawPrompt: string): Pr
     return;
   }
 
-  await ctx.stateStore.save({ globalPrompt: parsed });
+  await ctx.userConfigStore.save({ globalPrompt: parsed });
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
     body: parsed ? "Global prompt updated." : "Global prompt cleared."
@@ -383,10 +391,27 @@ async function handleSetGlobalFactcheckPrompt(ctx: CommandContext, rawPrompt: st
     return;
   }
 
-  await ctx.stateStore.save({ globalFactcheckPrompt: parsed });
+  await ctx.userConfigStore.save({ globalFactcheckPrompt: parsed });
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
     body: parsed ? "Global factcheck prompt updated." : "Global factcheck prompt cleared."
+  });
+}
+
+async function handleSetMonitorPrompt(ctx: CommandContext, rawPrompt: string): Promise<void> {
+  const parsed = parsePromptInput(rawPrompt);
+  if (parsed === null) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: 'Usage: !admin setmonitorprompt "PROMPT" (or !admin setmonitorprompt clear)'
+    });
+    return;
+  }
+
+  await ctx.userConfigStore.save({ monitorPrompt: parsed });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: parsed ? "Monitor prompt updated." : "Monitor prompt cleared."
   });
 }
 
@@ -574,20 +599,18 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
 
   const monitorName = container;
   const state = await ctx.stateStore.load();
-  const existing = state.monitors.find((m) => m.name.toLowerCase() === monitorName.toLowerCase());
+  const userConfig = await ctx.userConfigStore.load();
+  const existing = userConfig.monitors.find((m) => m.name.toLowerCase() === monitorName.toLowerCase());
   if (existing) {
     existing.selector = selector;
     existing.pattern = pattern;
     state.monitorSeenKeys[existing.id] = [];
     recordMonitorHistory(state, existing.id, monitorName, rawArgs);
-    await ctx.stateStore.save({
-      monitors: state.monitors,
-      monitorSeenKeys: state.monitorSeenKeys,
-      monitorHistory: state.monitorHistory
-    });
+    await ctx.userConfigStore.save({ monitors: userConfig.monitors });
+    await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorHistory: state.monitorHistory });
   } else {
     const id = randomId();
-    state.monitors.push({
+    userConfig.monitors.push({
       id,
       name: monitorName,
       selector,
@@ -596,11 +619,8 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
     });
     state.monitorSeenKeys[id] = [];
     recordMonitorHistory(state, id, monitorName, rawArgs);
-    await ctx.stateStore.save({
-      monitors: state.monitors,
-      monitorSeenKeys: state.monitorSeenKeys,
-      monitorHistory: state.monitorHistory
-    });
+    await ctx.userConfigStore.save({ monitors: userConfig.monitors });
+    await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorHistory: state.monitorHistory });
   }
 
   await ctx.client.sendMessage(ctx.roomId, {
@@ -621,6 +641,7 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
 
   const index = Number.parseInt(value, 10);
   const state = await ctx.stateStore.load();
+  const userConfig = await ctx.userConfigStore.load();
 
   if (Number.isInteger(index) && index > 0) {
     const listKey = buildMonitorListKey(ctx);
@@ -640,7 +661,7 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
       return;
     }
     const targetId = list[index - 1];
-    const target = state.monitors.find((m) => m.id === targetId);
+    const target = userConfig.monitors.find((m) => m.id === targetId);
     if (!target) {
       await ctx.client.sendMessage(ctx.roomId, {
         msgtype: "m.text",
@@ -648,13 +669,11 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
       });
       return;
     }
-    state.monitors = state.monitors.filter((m) => m.id !== target.id);
     delete state.monitorSeenKeys[target.id];
-    await ctx.stateStore.save({
-      monitors: state.monitors,
-      monitorSeenKeys: state.monitorSeenKeys,
-      monitorLastList: state.monitorLastList
+    await ctx.userConfigStore.save({
+      monitors: userConfig.monitors.filter((m) => m.id !== target.id)
     });
+    await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorLastList: state.monitorLastList });
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
       body: `Monitor "${target.name}" removed.`
@@ -662,7 +681,7 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
     return;
   }
 
-  const target = state.monitors.find((m) => m.name.toLowerCase() === value.toLowerCase());
+  const target = userConfig.monitors.find((m) => m.name.toLowerCase() === value.toLowerCase());
   if (!target) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
@@ -670,13 +689,11 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
     });
     return;
   }
-  state.monitors = state.monitors.filter((m) => m.id !== target.id);
   delete state.monitorSeenKeys[target.id];
-  await ctx.stateStore.save({
-    monitors: state.monitors,
-    monitorSeenKeys: state.monitorSeenKeys,
-    monitorLastList: state.monitorLastList
+  await ctx.userConfigStore.save({
+    monitors: userConfig.monitors.filter((m) => m.id !== target.id)
   });
+  await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorLastList: state.monitorLastList });
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
     body: `Monitor "${value}" removed.`
@@ -684,8 +701,8 @@ async function handleRemoveMonitor(ctx: CommandContext, rawName: string): Promis
 }
 
 async function handleListMonitors(ctx: CommandContext): Promise<void> {
-  const state = await ctx.stateStore.load();
-  if (state.monitors.length === 0) {
+  const userConfig = await ctx.userConfigStore.load();
+  if (userConfig.monitors.length === 0) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
       body: "No monitors configured."
@@ -694,7 +711,7 @@ async function handleListMonitors(ctx: CommandContext): Promise<void> {
   }
 
   const lines = ["Monitors:"];
-  for (const monitor of state.monitors) {
+  for (const monitor of userConfig.monitors) {
     lines.push(`- ${monitor.name} (${monitor.selector} |~ "${monitor.pattern}")`);
   }
   await ctx.client.sendMessage(ctx.roomId, {
@@ -758,8 +775,8 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
     return;
   }
 
-  const state = await ctx.stateStore.load();
-  const monitor = state.monitors.find((m) => m.name.toLowerCase() === name.toLowerCase());
+  const userConfig = await ctx.userConfigStore.load();
+  const monitor = userConfig.monitors.find((m) => m.name.toLowerCase() === name.toLowerCase());
   if (!monitor) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
@@ -779,7 +796,7 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
 
   labels.set(pair.key, pair.value);
   monitor.selector = `{${[...labels.entries()].map(([key, value]) => `${key}="${value}"`).join(",")}}`;
-  await ctx.stateStore.save({ monitors: state.monitors });
+  await ctx.userConfigStore.save({ monitors: userConfig.monitors });
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
     body: `Monitor "${monitor.name}" selector updated.`
@@ -789,8 +806,7 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
 async function derivePattern(ctx: CommandContext, sample: string): Promise<string | null> {
   if (ctx.llmStudio && ctx.isAllowedUser) {
     try {
-      const systemPrompt =
-        "You are a sysadmin and network monitoring specialist. You must create a short regex that matches similar logs while ignoring timestamps, numeric ids, ports, and IP addresses. Focus on the stable keywords and phrasing.";
+      const systemPrompt = ctx.botConfig.monitorPrompt;
       const userPrompt = [
         "Return ONLY the regex pattern. No prose, no JSON, no markdown.",
         "The pattern should be a safe regex fragment for Loki's |~ operator, without slashes.",

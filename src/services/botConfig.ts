@@ -1,5 +1,6 @@
 import { env } from "../config/env";
 import { BotStateStore } from "./botStateStore";
+import { UserConfigStore } from "./userConfigStore";
 
 export interface BotRuntimeConfig {
   botDisplayName?: string;
@@ -9,18 +10,30 @@ export interface BotRuntimeConfig {
   globalPrompt?: string;
   globalFactcheckPrompt?: string;
   qbittorrentLabelSelector?: string;
+  monitorPrompt?: string;
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
+export const DEFAULT_MONITOR_PROMPT =
+  "You are a sysadmin and network monitoring specialist. You must create a short regex that matches similar logs while ignoring timestamps, numeric ids, ports, and IP addresses. Focus on the stable keywords and phrasing.";
 
-export async function loadBotConfig(stateStore: BotStateStore): Promise<BotRuntimeConfig> {
+export async function loadBotConfig(
+  stateStore: BotStateStore,
+  userConfigStore: UserConfigStore
+): Promise<BotRuntimeConfig> {
   const state = await stateStore.load();
+  const userConfig = await userConfigStore.load();
   const promptCommand = normalizePromptCommand(state.promptCommand) ?? DEFAULT_PROMPT_COMMAND;
   const globalPrompt =
-    normalizePromptText(state.globalPrompt) ?? normalizePromptText(env.llmStudioGlobalPrompt);
+    normalizePromptText(userConfig.globalPrompt) ??
+    normalizePromptText(state.globalPrompt) ??
+    normalizePromptText(env.llmStudioGlobalPrompt);
   const globalFactcheckPrompt =
+    normalizePromptText(userConfig.globalFactcheckPrompt) ??
     normalizePromptText(state.globalFactcheckPrompt) ??
     normalizePromptText(env.llmStudioFactcheckPrompt);
+  const monitorPrompt =
+    normalizePromptText(userConfig.monitorPrompt) ?? DEFAULT_MONITOR_PROMPT;
   return {
     botDisplayName: state.botDisplayName,
     promptCommand,
@@ -28,7 +41,8 @@ export async function loadBotConfig(stateStore: BotStateStore): Promise<BotRunti
     extraAllowedUsers: Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : [],
     globalPrompt,
     globalFactcheckPrompt,
-    qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector)
+    qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector),
+    monitorPrompt
   };
 }
 

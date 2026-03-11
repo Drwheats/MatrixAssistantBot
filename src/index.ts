@@ -14,6 +14,7 @@ import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLog
 import { GrafanaQbittorrentAlertsService } from "./services/grafanaQbittorrentAlerts";
 import { GrafanaMonitorAlertsService } from "./services/grafanaMonitorAlerts";
 import { LlmStudioConnector } from "./connectors/llmStudio";
+import { UserConfigStore } from "./services/userConfigStore";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -26,6 +27,7 @@ const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
 const llmStudio = new LlmStudioConnector();
 const stateStore = new BotStateStore("assistant-state.json");
+const userConfigStore = new UserConfigStore("user-config.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
 const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
 const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
@@ -44,7 +46,8 @@ const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
   client,
   grafana,
   grafanaAlertsChannelService,
-  stateStore
+  stateStore,
+  userConfigStore
 );
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
@@ -58,7 +61,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
   }
 
   const body = String(event.content.body ?? "").trim();
-  const botConfig = await loadBotConfig(stateStore);
+  const botConfig = await loadBotConfig(stateStore, userConfigStore);
   const isAllowedUserFlag = isAllowedUser(sender, botConfig);
   const isAdminUserFlag = isAdminUser(sender);
 
@@ -73,6 +76,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       isAdminUser: isAdminUserFlag,
       botConfig,
       stateStore,
+      userConfigStore,
       googleCalendar,
       trello,
       grafana,
@@ -95,6 +99,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       isAdminUser: isAdminUserFlag,
       botConfig,
       stateStore,
+      userConfigStore,
       googleCalendar,
       trello,
       grafana,
@@ -120,6 +125,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     isAdminUser: isAdminUserFlag,
     botConfig,
     stateStore,
+    userConfigStore,
     googleCalendar,
     trello,
     grafana,
@@ -158,18 +164,18 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
     return;
   }
 
-  const remaining = state.monitors.filter((monitor) => !monitorIds.includes(monitor.id));
-  if (remaining.length === state.monitors.length) {
+  const userConfig = await userConfigStore.load();
+  const remaining = userConfig.monitors.filter((monitor) => !monitorIds.includes(monitor.id));
+  if (remaining.length === userConfig.monitors.length) {
     return;
   }
 
-  state.monitors = remaining;
   for (const id of monitorIds) {
     delete state.monitorSeenKeys[id];
   }
   delete state.monitorReviewTargets[targetEventId];
+  await userConfigStore.save({ monitors: remaining });
   await stateStore.save({
-    monitors: state.monitors,
     monitorSeenKeys: state.monitorSeenKeys,
     monitorReviewTargets: state.monitorReviewTargets
   });

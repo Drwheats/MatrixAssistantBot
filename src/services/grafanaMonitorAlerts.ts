@@ -3,6 +3,7 @@ import { GrafanaConnector, GrafanaLogEntry } from "../connectors/grafana";
 import { GrafanaAlertsChannelService } from "./grafanaAlertsChannel";
 import { BotState, BotStateStore, MonitorDefinition } from "./botStateStore";
 import { env } from "../config/env";
+import { UserConfigStore } from "./userConfigStore";
 
 const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_LOOKBACK_MS = 5 * 60_000;
@@ -17,7 +18,8 @@ export class GrafanaMonitorAlertsService {
     private readonly client: MatrixClient,
     private readonly grafana: GrafanaConnector,
     private readonly alertsChannel: GrafanaAlertsChannelService,
-    private readonly stateStore: BotStateStore
+    private readonly stateStore: BotStateStore,
+    private readonly userConfigStore: UserConfigStore
   ) {}
 
   async start(): Promise<void> {
@@ -52,7 +54,8 @@ export class GrafanaMonitorAlertsService {
     this.isRunning = true;
     try {
       const state = await this.stateStore.load();
-      if (state.monitors.length === 0) {
+      const userConfig = await this.userConfigStore.load();
+      if (userConfig.monitors.length === 0) {
         return;
       }
 
@@ -61,7 +64,7 @@ export class GrafanaMonitorAlertsService {
         return;
       }
 
-      for (const monitor of state.monitors) {
+      for (const monitor of userConfig.monitors) {
         await this.checkMonitor(state, roomId, monitor);
       }
     } finally {

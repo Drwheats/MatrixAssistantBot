@@ -58,6 +58,8 @@ If setup is correct, bot replies `pong`.
 
 Admin commands require the sender to be listed in `MATRIX_ALLOWED_USERS`.
 
+User-configured prompts and monitors are stored in `user-config.json` in the project root so they persist across updates.
+
 Admin command examples:
 - `!admin rename "New Bot Name" !ask`
 - `!admin command !ask`
@@ -65,8 +67,11 @@ Admin command examples:
 - `!admin deny @friend:yourdomain.com`
 - `!admin open on`
 - `!admin open off`
+- `!admin monitor "mushroom" "2026-03-11T15:08:47... Accepted password for mushroom ..."`
 - `!admin showmonitoring 10`
 - `!admin unmonitor 3`
+- `!admin monitorlabel mushroom host=mushroom`
+- `!admin setmonitorprompt "PROMPT"`
 
 ## Step 5: Configure Google Calendar (optional)
 
@@ -194,6 +199,7 @@ Test in room:
 Admin prompt overrides:
 - `!admin setglobalprompt "PROMPT"`
 - `!admin setglobalfactcheckprompt "PROMPT"`
+- `!admin setmonitorprompt "PROMPT"`
 
 ## Step 9: Run bot
 

@@ -30,7 +30,13 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
       "!admin command !name - set the prompt command",
       "!admin allow @user:server - allow a new user",
       "!admin deny @user:server - revoke a user",
-      "!admin open on|off|status - toggle open mode"
+      "!admin open on|off|status - toggle open mode",
+      '!admin monitor "container" "sample log" - add a Grafana log monitor',
+      "!admin monitorlabel name key=value - add/overwrite monitor label selector",
+      "!admin showmonitoring [N] - list recent monitor commands",
+      "!admin unmonitor N - remove monitor by number from last list",
+      '!admin setmonitorprompt "PROMPT" - set monitor prompt',
+      "!admin status - show current settings"
     );
   }
 
