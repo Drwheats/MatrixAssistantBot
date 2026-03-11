@@ -14,5 +14,7 @@
     "2026-03-10T17:55:42.256Z|2026-03-10T13:55:42.025600-04:00 mushroom sshd[747432]: Accepted password for mushroom from 192.168.68.64 port 38996 ssh2",
     "2026-03-10T18:31:30.611Z|2026-03-10T14:31:30.461927-04:00 mushroom sshd[765928]: Accepted password for mushroom from 192.168.68.64 port 40922 ssh2"
   ],
-  "onePasswordSigninSeenIds": []
+  "botDisplayName": "Blompf",
+  "promptCommand": "!blompf",
+  "extraAllowedUsers": []
 }

@@ -30,13 +30,6 @@ const envSchema = z.object({
   GRAFANA_SECURITY_LOGIN_LOOKBACK_MS: z.coerce.number().optional(),
   GRAFANA_SECURITY_LOGIN_LIMIT: z.coerce.number().optional(),
 
-  ONEPASSWORD_EVENTS_BASE_URL: z.string().url().optional(),
-  ONEPASSWORD_EVENTS_TOKEN: z.string().optional(),
-  ONEPASSWORD_SIGNIN_ALERTS_ENABLED: z.coerce.boolean().optional(),
-  ONEPASSWORD_SIGNIN_POLL_MS: z.coerce.number().optional(),
-  ONEPASSWORD_SIGNIN_LIMIT: z.coerce.number().optional(),
-  ONEPASSWORD_SIGNIN_MAX_PAGES: z.coerce.number().optional(),
-
   LLM_STUDIO_BASE_URL: z.string().url().default("http://localhost:1234"),
   LLM_STUDIO_API_KEY: z.string().optional(),
   LLM_STUDIO_MODEL: z.string().optional(),
@@ -80,12 +73,6 @@ export const env = {
   grafanaSecurityLoginPollMs: parsed.data.GRAFANA_SECURITY_LOGIN_POLL_MS ?? 15_000,
   grafanaSecurityLoginLookbackMs: parsed.data.GRAFANA_SECURITY_LOGIN_LOOKBACK_MS ?? 5 * 60_000,
   grafanaSecurityLoginLimit: parsed.data.GRAFANA_SECURITY_LOGIN_LIMIT ?? 50,
-  hasOnePasswordEventsCredentials:
-    !!parsed.data.ONEPASSWORD_EVENTS_BASE_URL && !!parsed.data.ONEPASSWORD_EVENTS_TOKEN,
-  onePasswordSigninAlertsEnabled: parsed.data.ONEPASSWORD_SIGNIN_ALERTS_ENABLED ?? false,
-  onePasswordSigninPollMs: parsed.data.ONEPASSWORD_SIGNIN_POLL_MS ?? 30_000,
-  onePasswordSigninLimit: parsed.data.ONEPASSWORD_SIGNIN_LIMIT ?? 100,
-  onePasswordSigninMaxPages: parsed.data.ONEPASSWORD_SIGNIN_MAX_PAGES ?? 3,
   hasLlmStudioCredentials: !!parsed.data.LLM_STUDIO_MODEL,
   llmStudioTemperature: parsed.data.LLM_STUDIO_TEMPERATURE ?? 0.2,
   llmStudioMaxTokens: parsed.data.LLM_STUDIO_MAX_TOKENS ?? 700,

@@ -11,8 +11,6 @@ import { isAdminUser, isAllowedUser, loadBotConfig } from "./services/botConfig"
 import { AnnouncementService } from "./services/announcements";
 import { GrafanaAlertsChannelService } from "./services/grafanaAlertsChannel";
 import { GrafanaSecurityLoginAlertsService } from "./services/grafanaSecurityLoginAlerts";
-import { OnePasswordSigninAlertsService } from "./services/onePasswordSigninAlerts";
-import { OnePasswordEventsConnector } from "./connectors/onePasswordEvents";
 import { LlmStudioConnector } from "./connectors/llmStudio";
 
 LogService.setLevel(LogLevel.ERROR);
@@ -24,7 +22,6 @@ AutojoinRoomsMixin.setupOnClient(client);
 const googleCalendar = new GoogleCalendarConnector();
 const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
-const onePasswordEvents = new OnePasswordEventsConnector();
 const llmStudio = new LlmStudioConnector();
 const stateStore = new BotStateStore("assistant-state.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
@@ -32,12 +29,6 @@ const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stat
 const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
   client,
   grafana,
-  grafanaAlertsChannelService,
-  stateStore
-);
-const onePasswordSigninAlertsService = new OnePasswordSigninAlertsService(
-  client,
-  onePasswordEvents,
   grafanaAlertsChannelService,
   stateStore
 );
@@ -126,7 +117,6 @@ async function main(): Promise<void> {
   await client.start();
   await grafanaAlertsChannelService.start();
   await grafanaSecurityLoginAlertsService.start();
-  await onePasswordSigninAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }

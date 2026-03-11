@@ -7,9 +7,6 @@ export interface BotState {
   lastWeeklyAnnouncementISO?: string;
   sentReminderKeys: string[];
   securityLoginSeenKeys: string[];
-  onePasswordSigninCursor?: string;
-  onePasswordSigninInitializedAt?: string;
-  onePasswordSigninSeenIds: string[];
   botDisplayName?: string;
   promptCommand?: string;
   openMode?: boolean;
@@ -19,7 +16,6 @@ export interface BotState {
 const DEFAULT_STATE: BotState = {
   sentReminderKeys: [],
   securityLoginSeenKeys: [],
-  onePasswordSigninSeenIds: [],
   extraAllowedUsers: []
 };
 
@@ -40,10 +36,6 @@ export class BotStateStore {
         lastWeeklyAnnouncementISO: parsed.lastWeeklyAnnouncementISO,
         sentReminderKeys: Array.isArray(parsed.sentReminderKeys) ? parsed.sentReminderKeys : [],
         securityLoginSeenKeys: Array.isArray(parsed.securityLoginSeenKeys) ? parsed.securityLoginSeenKeys : [],
-        onePasswordSigninCursor: typeof parsed.onePasswordSigninCursor === "string" ? parsed.onePasswordSigninCursor : undefined,
-        onePasswordSigninInitializedAt:
-          typeof parsed.onePasswordSigninInitializedAt === "string" ? parsed.onePasswordSigninInitializedAt : undefined,
-        onePasswordSigninSeenIds: Array.isArray(parsed.onePasswordSigninSeenIds) ? parsed.onePasswordSigninSeenIds : [],
         botDisplayName: typeof parsed.botDisplayName === "string" ? parsed.botDisplayName : undefined,
         promptCommand: typeof parsed.promptCommand === "string" ? parsed.promptCommand : undefined,
         openMode: typeof parsed.openMode === "boolean" ? parsed.openMode : undefined,
@@ -54,24 +46,21 @@ export class BotStateStore {
     }
   }
 
-  async save(state: BotState): Promise<void> {
+  async save(state: Partial<BotState>): Promise<void> {
     const current = await this.load();
+    const sentReminderKeys = Array.isArray(state.sentReminderKeys) ? state.sentReminderKeys : [];
+    const securityLoginSeenKeys = Array.isArray(state.securityLoginSeenKeys) ? state.securityLoginSeenKeys : [];
+    const extraAllowedUsers = Array.isArray(state.extraAllowedUsers) ? state.extraAllowedUsers : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
       lastWeeklyAnnouncementISO: latestISO(state.lastWeeklyAnnouncementISO, current.lastWeeklyAnnouncementISO),
-      sentReminderKeys: mergeUnique(current.sentReminderKeys, state.sentReminderKeys, 5000),
-      securityLoginSeenKeys: mergeUnique(current.securityLoginSeenKeys, state.securityLoginSeenKeys, 5000),
-      onePasswordSigninCursor: state.onePasswordSigninCursor ?? current.onePasswordSigninCursor,
-      onePasswordSigninInitializedAt: latestISO(
-        state.onePasswordSigninInitializedAt,
-        current.onePasswordSigninInitializedAt
-      ),
-      onePasswordSigninSeenIds: mergeUnique(current.onePasswordSigninSeenIds, state.onePasswordSigninSeenIds, 5000),
+      sentReminderKeys: mergeUnique(current.sentReminderKeys, sentReminderKeys, 5000),
+      securityLoginSeenKeys: mergeUnique(current.securityLoginSeenKeys, securityLoginSeenKeys, 5000),
       botDisplayName: state.botDisplayName ?? current.botDisplayName,
       promptCommand: state.promptCommand ?? current.promptCommand,
       openMode: state.openMode ?? current.openMode,
-      extraAllowedUsers: state.extraAllowedUsers ?? current.extraAllowedUsers ?? []
+      extraAllowedUsers: extraAllowedUsers ?? current.extraAllowedUsers ?? []
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
