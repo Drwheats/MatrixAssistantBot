@@ -1,7 +1,7 @@
 import { env } from "../config/env";
 
 interface ChatCompletionResponse {
-  output?: string;
+  output?: string | Array<string | { content?: string; text?: string }>;
   message?: { content?: string };
   choices?: Array<{ message?: { content?: string } }>;
   error?: { message?: string } | string;
@@ -79,12 +79,11 @@ function extractContent(data: ChatCompletionResponse): string | null {
           return item;
         }
         if (item && typeof item === "object") {
-          const record = item as Record<string, unknown>;
-          if (typeof record.content === "string") {
-            return record.content;
+          if (typeof item.content === "string") {
+            return item.content;
           }
-          if (typeof record.text === "string") {
-            return record.text;
+          if (typeof item.text === "string") {
+            return item.text;
           }
         }
         return "";
