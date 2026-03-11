@@ -66,9 +66,8 @@ export class GrafanaConnector {
     if (!response.ok) {
       const text = await response.text();
       const details = text ? ` - ${text}` : "";
-      const safeQuery = truncateForLog(query, 400);
       throw new Error(
-        `Grafana API error: ${response.status} ${response.statusText}${details}. Query: ${safeQuery}`
+        `Grafana API error: ${response.status} ${response.statusText}${details}`
       );
     }
 
