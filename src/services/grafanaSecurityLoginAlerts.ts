@@ -97,7 +97,7 @@ export class GrafanaSecurityLoginAlertsService {
     }
 
     const selector = normalizeLokiSelector(env.GRAFANA_SECURITY_LOGIN_LABEL_SELECTOR);
-    return `${selector} |~ "(?i)sshd" |~ "(?i)(accepted password|session opened for user)"`;
+    return `${selector} |~ "(?i)sshd" |~ "(?i)(accepted password|failed password|session opened for user)"`;
   }
 
   private entryKey(timestamp: string, message: string): string {
