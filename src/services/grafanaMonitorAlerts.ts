@@ -24,24 +24,14 @@ export class GrafanaMonitorAlertsService {
     if (!env.hasGrafanaCredentials) {
       return;
     }
-    const state = await this.stateStore.load();
-    if (state.monitors.length === 0) {
-      return;
-    }
-
-    const roomId = await this.alertsChannel.getOrCreateRoomId(state);
-    if (!roomId) {
-      return;
-    }
-
     try {
-      await this.checkAndSend(state, roomId);
+      await this.checkAndSend();
     } catch (error) {
       console.error("Monitor alert check failed during startup:", error);
     }
 
     this.intervalHandle = setInterval(() => {
-      this.checkAndSend(state, roomId).catch((error) => {
+      this.checkAndSend().catch((error) => {
         console.error("Monitor alert check failed:", error);
       });
     }, DEFAULT_POLL_MS);
@@ -54,14 +44,20 @@ export class GrafanaMonitorAlertsService {
     }
   }
 
-  private async checkAndSend(state: BotState, roomId: string): Promise<void> {
+  private async checkAndSend(): Promise<void> {
     if (this.isRunning) {
       return;
     }
 
     this.isRunning = true;
     try {
+      const state = await this.stateStore.load();
       if (state.monitors.length === 0) {
+        return;
+      }
+
+      const roomId = await this.alertsChannel.getOrCreateRoomId(state);
+      if (!roomId) {
         return;
       }
 

@@ -599,7 +599,7 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
 
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
-    body: `Monitor "${monitorName}" saved.`
+    body: `Monitor "${monitorName}" saved.\nPattern: ${pattern}`
   });
 }
 
@@ -783,15 +783,16 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
 async function derivePattern(ctx: CommandContext, sample: string): Promise<string | null> {
   if (ctx.llmStudio && ctx.isAllowedUser) {
     try {
-      const prompt = [
-        "You are helping configure a Loki log monitor.",
-        "Given a single log line, return ONLY a JSON object with a 'pattern' field.",
+      const systemPrompt =
+        "You are a sysadmin and network monitoring specialist. You have been given a log that has significance and you need to monitor for similar logs. Create a regex to search for similar logs ignoring things like dates, ports and ids and focusing on the keywords in this log";
+      const userPrompt = [
+        "Return ONLY the regex pattern. No prose, no JSON, no markdown.",
         "The pattern should be a safe regex fragment for Loki's |~ operator, without slashes.",
         "Keep it short (<= 120 chars) and target the meaningful part of the message.",
         `Log line: ${sample}`
       ].join("\n");
-      const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt);
-      const parsed = extractJsonPattern(reply);
+      const reply = await ctx.llmStudio.chat(userPrompt, systemPrompt);
+      const parsed = extractPattern(reply);
       if (parsed) {
         return parsed;
       }
@@ -803,7 +804,15 @@ async function derivePattern(ctx: CommandContext, sample: string): Promise<strin
   return heuristicPattern(sample);
 }
 
-function extractJsonPattern(raw: string): string | null {
+function extractPattern(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!trimmed.startsWith("{") && !trimmed.includes("\n")) {
+    return trimPattern(trimmed);
+  }
+
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) {
     return null;
@@ -813,11 +822,21 @@ function extractJsonPattern(raw: string): string | null {
     if (typeof parsed.pattern !== "string") {
       return null;
     }
-    const trimmed = parsed.pattern.trim();
-    return trimmed.length > 0 ? trimmed : null;
+    return trimPattern(parsed.pattern);
   } catch {
     return null;
   }
+}
+
+function trimPattern(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.length > 120) {
+    return trimmed.slice(0, 120);
+  }
+  return trimmed;
 }
 
 function heuristicPattern(sample: string): string | null {
