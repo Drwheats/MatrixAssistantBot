@@ -326,8 +326,8 @@ function formatPrompt(prompt?: string): string {
 async function handleSysinfo(ctx: CommandContext): Promise<void> {
   const lines: string[] = ["System info:"];
 
-  if (process.platform !== "darwin") {
-    lines.push(`Platform: ${process.platform} (sysinfo supported on macOS only).`);
+  if (process.platform !== "darwin" && process.platform !== "linux") {
+    lines.push(`Platform: ${process.platform} (sysinfo supported on macOS and Linux only).`);
   } else {
     const battery = await readBatteryPercent();
     lines.push(`Battery: ${battery !== null ? `${battery}%` : "unknown"}`);
@@ -352,7 +352,7 @@ async function handleSysinfo(ctx: CommandContext): Promise<void> {
 
     const thermal = await readThermalStatus();
     if (thermal) {
-      const status = thermal.isAnomalous ? `ANOMALY - ${thermal.message}` : "nominal";
+      const status = thermal.isAnomalous ? `ANOMALY - ${thermal.message}` : thermal.message;
       lines.push(`Thermal: ${status}`);
     } else {
       lines.push("Thermal: unknown");
