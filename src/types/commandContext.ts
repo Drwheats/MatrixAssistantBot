@@ -6,6 +6,7 @@ import { LlmStudioConnector } from "../connectors/llmStudio";
 import { BotStateStore } from "../services/botStateStore";
 import { BotRuntimeConfig } from "../services/botConfig";
 import { UserConfigStore } from "../services/userConfigStore";
+import { GrafanaAlertsChannelService } from "../services/grafanaAlertsChannel";
 
 export interface CommandContext {
   client: MatrixClient;
@@ -18,6 +19,7 @@ export interface CommandContext {
   botConfig: BotRuntimeConfig;
   stateStore: BotStateStore;
   userConfigStore: UserConfigStore;
+  alertsChannel: GrafanaAlertsChannelService;
   googleCalendar: GoogleCalendarConnector;
   trello: TrelloConnector;
   grafana: GrafanaConnector;

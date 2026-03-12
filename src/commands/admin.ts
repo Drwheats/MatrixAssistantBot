@@ -2,6 +2,14 @@ import { CommandContext } from "../types/commandContext";
 import { env } from "../config/env";
 import { normalizeLabelSelector, normalizePromptCommand, normalizePromptText } from "../services/botConfig";
 import { startLlmReactions } from "../utils/llmReactions";
+import {
+  readActiveSshConnections,
+  readBatteryPercent,
+  readCpuUsagePercent,
+  readDiskUsage,
+  readMemoryUsage,
+  readThermalStatus
+} from "../utils/sysinfo";
 import { BotState } from "../services/botStateStore";
 
 const ADMIN_PREFIX = "!admin";
@@ -47,6 +55,16 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
 
   if (args.toLowerCase().startsWith("open ")) {
     await handleOpenMode(ctx, args.slice("open ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase() === "listprompts") {
+    await handleListPrompts(ctx);
+    return;
+  }
+
+  if (args.toLowerCase() === "sysinfo") {
+    await handleSysinfo(ctx);
     return;
   }
 
@@ -284,6 +302,96 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
   });
 }
 
+async function handleListPrompts(ctx: CommandContext): Promise<void> {
+  const lines = [
+    "Prompts:",
+    `Global prompt: ${formatPrompt(ctx.botConfig.globalPrompt)}`,
+    `Global factcheck prompt: ${formatPrompt(ctx.botConfig.globalFactcheckPrompt)}`,
+    `Monitor prompt: ${formatPrompt(ctx.botConfig.monitorPrompt)}`
+  ];
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: lines.join("\n")
+  });
+}
+
+function formatPrompt(prompt?: string): string {
+  if (!prompt) {
+    return "(unset)";
+  }
+  return prompt;
+}
+
+async function handleSysinfo(ctx: CommandContext): Promise<void> {
+  const lines: string[] = ["System info:"];
+
+  if (process.platform !== "darwin") {
+    lines.push(`Platform: ${process.platform} (sysinfo supported on macOS only).`);
+  } else {
+    const battery = await readBatteryPercent();
+    lines.push(`Battery: ${battery !== null ? `${battery}%` : "unknown"}`);
+
+    const cpuUsage = await readCpuUsagePercent();
+    lines.push(`CPU usage: ${cpuUsage !== null ? `${cpuUsage.toFixed(1)}%` : "unknown"}`);
+
+    const mem = await readMemoryUsage();
+    if (mem) {
+      const percent = Math.round((mem.usedBytes / mem.totalBytes) * 100);
+      lines.push(`Memory: ${formatBytes(mem.usedBytes)} / ${formatBytes(mem.totalBytes)} (${percent}%)`);
+    } else {
+      lines.push("Memory: unknown");
+    }
+
+    const disk = await readDiskUsage("/");
+    if (disk) {
+      lines.push(`Disk (/): ${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)} (${disk.usedPercent}%)`);
+    } else {
+      lines.push("Disk (/): unknown");
+    }
+
+    const thermal = await readThermalStatus();
+    if (thermal) {
+      const status = thermal.isAnomalous ? `ANOMALY - ${thermal.message}` : "nominal";
+      lines.push(`Thermal: ${status}`);
+    } else {
+      lines.push("Thermal: unknown");
+    }
+
+    const ssh = await readActiveSshConnections();
+    if (ssh) {
+      lines.push(`Active SSH connections: ${ssh.length}`);
+      if (ssh.length > 0) {
+        for (const entry of ssh) {
+          lines.push(`- ${entry}`);
+        }
+      }
+    } else {
+      lines.push("Active SSH connections: unknown");
+    }
+  }
+
+  await ctx.alertsChannel.sendMessage(lines.join("\n"));
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: "Sysinfo sent to alerts channel."
+  });
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let idx = 0;
+  let value = bytes;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
 async function sendAdminHelp(ctx: CommandContext): Promise<void> {
   const lines = [
     "Admin commands:",
@@ -292,6 +400,8 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin allow @user:server - allow a new user",
     "!admin deny @user:server - revoke a user",
     "!admin open on|off|status - toggle open mode",
+    "!admin listprompts - list all prompts",
+    "!admin sysinfo - send system info to alerts channel",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
     '!admin setmonitorprompt "PROMPT" - set monitor prompt (use "clear" to reset)',

@@ -8,48 +8,60 @@ interface ChatCompletionResponse {
 }
 
 export class LlmStudioConnector {
+  private activeRequests = 0;
+
+  isBusy(): boolean {
+    return this.activeRequests > 0;
+  }
+
   async chat(prompt: string, systemPrompt?: string): Promise<string> {
+    this.activeRequests += 1;
     if (!env.hasLlmStudioCredentials) {
+      this.activeRequests -= 1;
       throw new Error("LLM Studio is not configured.");
     }
 
-    const body: Record<string, unknown> = {
-      model: env.LLM_STUDIO_MODEL,
-      ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
-      input: prompt
-    };
+    try {
+      const body: Record<string, unknown> = {
+        model: env.LLM_STUDIO_MODEL,
+        ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
+        input: prompt
+      };
 
-    if (typeof env.llmStudioTemperature === "number") {
-      body.temperature = env.llmStudioTemperature;
+      if (typeof env.llmStudioTemperature === "number") {
+        body.temperature = env.llmStudioTemperature;
+      }
+
+      const response = await fetch(buildChatUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(env.LLM_STUDIO_API_KEY ? { Authorization: `Bearer ${env.LLM_STUDIO_API_KEY}` } : {})
+        },
+        body: JSON.stringify(body),
+        signal: timeoutSignal(env.llmStudioTimeoutMs)
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`LLM Studio error: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
+      }
+
+      const data = (await response.json()) as ChatCompletionResponse;
+      if (data.error) {
+        const message = typeof data.error === "string" ? data.error : data.error.message ?? "Unknown error";
+        throw new Error(`LLM Studio error: ${message}`);
+      }
+
+      const content = extractContent(data);
+      if (!content) {
+        throw new Error("LLM Studio returned an empty response.");
+      }
+
+      return content;
+    } finally {
+      this.activeRequests = Math.max(0, this.activeRequests - 1);
     }
-
-    const response = await fetch(buildChatUrl(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(env.LLM_STUDIO_API_KEY ? { Authorization: `Bearer ${env.LLM_STUDIO_API_KEY}` } : {})
-      },
-      body: JSON.stringify(body),
-      signal: timeoutSignal(env.llmStudioTimeoutMs)
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`LLM Studio error: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
-    }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    if (data.error) {
-      const message = typeof data.error === "string" ? data.error : data.error.message ?? "Unknown error";
-      throw new Error(`LLM Studio error: ${message}`);
-    }
-
-    const content = extractContent(data);
-    if (!content) {
-      throw new Error("LLM Studio returned an empty response.");
-    }
-
-    return content;
   }
 }
 

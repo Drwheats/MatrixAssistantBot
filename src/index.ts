@@ -15,6 +15,7 @@ import { GrafanaQbittorrentAlertsService } from "./services/grafanaQbittorrentAl
 import { GrafanaMonitorAlertsService } from "./services/grafanaMonitorAlerts";
 import { LlmStudioConnector } from "./connectors/llmStudio";
 import { UserConfigStore } from "./services/userConfigStore";
+import { HardwareAlertsService } from "./services/hardwareAlerts";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -49,6 +50,7 @@ const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
   stateStore,
   userConfigStore
 );
+const hardwareAlertsService = new HardwareAlertsService(grafanaAlertsChannelService, llmStudio);
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
@@ -77,6 +79,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       botConfig,
       stateStore,
       userConfigStore,
+      alertsChannel: grafanaAlertsChannelService,
       googleCalendar,
       trello,
       grafana,
@@ -100,6 +103,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       botConfig,
       stateStore,
       userConfigStore,
+      alertsChannel: grafanaAlertsChannelService,
       googleCalendar,
       trello,
       grafana,
@@ -126,6 +130,7 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     botConfig,
     stateStore,
     userConfigStore,
+    alertsChannel: grafanaAlertsChannelService,
     googleCalendar,
     trello,
     grafana,
@@ -192,6 +197,7 @@ async function main(): Promise<void> {
   await grafanaSecurityLoginAlertsService.start();
   await grafanaQbittorrentAlertsService.start();
   await grafanaMonitorAlertsService.start();
+  await hardwareAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }
