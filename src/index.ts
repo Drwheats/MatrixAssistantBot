@@ -16,6 +16,7 @@ import { GrafanaMonitorAlertsService } from "./services/grafanaMonitorAlerts";
 import { LlmStudioConnector } from "./connectors/llmStudio";
 import { UserConfigStore } from "./services/userConfigStore";
 import { HardwareAlertsService } from "./services/hardwareAlerts";
+import { SshLoginAlertsService } from "./services/sshLoginAlerts";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -51,6 +52,7 @@ const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
   userConfigStore
 );
 const hardwareAlertsService = new HardwareAlertsService(grafanaAlertsChannelService, llmStudio);
+const sshLoginAlertsService = new SshLoginAlertsService(grafanaAlertsChannelService);
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
@@ -198,6 +200,7 @@ async function main(): Promise<void> {
   await grafanaQbittorrentAlertsService.start();
   await grafanaMonitorAlertsService.start();
   await hardwareAlertsService.start();
+  await sshLoginAlertsService.start();
   await announcementService.start();
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }

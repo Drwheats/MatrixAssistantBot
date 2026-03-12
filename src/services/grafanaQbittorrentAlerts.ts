@@ -11,8 +11,6 @@ const DEFAULT_DEDUPE_LIMIT = 2000;
 const DEFAULT_MAX_ALERTS_PER_POLL = 5;
 const DEFAULT_MIN_SECONDS_BETWEEN_ALERTS = 60;
 
-type QbittorrentEventType = "started" | "finished";
-
 export class GrafanaQbittorrentAlertsService {
   private intervalHandle: NodeJS.Timeout | null = null;
   private isRunning = false;
@@ -143,44 +141,35 @@ export class GrafanaQbittorrentAlertsService {
   }
 
   private formatAlert(entry: GrafanaLogEntry): string {
-    const parsed = this.extractEvent(entry.message);
-    const name = parsed?.name ?? "Unknown torrent";
-    const type = parsed?.type ?? "started";
-    if (type === "error") {
-      return `File error : ${name}`;
+    const lines: string[] = [`(N) ${entry.timestamp} - ${entry.message}`, "", "LOG INFORMATION:"];
+    const labelLines = formatLabelLines(entry.labels);
+    if (labelLines.length === 0) {
+      lines.push("(no labels)");
+    } else {
+      lines.push(...labelLines);
     }
-    const verb = type === "finished" ? "finished" : "started";
-    return `Download ${verb} : ${name}`;
+    return lines.join("\n");
   }
 
-  private extractEvent(message: string): { type: QbittorrentEventType | "error"; name?: string } | null {
-    const added = message.match(/Added new torrent\. Torrent:\s*"([^"]+)"/i);
-    if (added) {
-      return { type: "started", name: added[1] };
-    }
+}
 
-    const finished = message.match(/Torrent download finished\. Torrent:\s*"([^"]+)"/i);
-    if (finished) {
-      return { type: "finished", name: finished[1] };
-    }
+function formatLabelLines(labels: Record<string, string>): string[] {
+  const preferredOrder = ["container", "qbittorrent", "filename", "host", "job", "service_name"];
+  const entries = Object.entries(labels);
+  const remaining = new Map(entries);
+  const lines: string[] = [];
 
-    const error = message.match(/File error alert\. Torrent:\s*"([^"]+)"/i);
-    if (error) {
-      return { type: "error", name: error[1] };
+  for (const key of preferredOrder) {
+    if (remaining.has(key)) {
+      lines.push(key, remaining.get(key) ?? "");
+      remaining.delete(key);
     }
-
-    if (/Torrent download finished/i.test(message)) {
-      return { type: "finished" };
-    }
-
-    if (/Added new torrent/i.test(message)) {
-      return { type: "started" };
-    }
-
-    if (/File error alert/i.test(message)) {
-      return { type: "error" };
-    }
-
-    return null;
   }
+
+  const sorted = [...remaining.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  for (const [key, value] of sorted) {
+    lines.push(key, value);
+  }
+
+  return lines;
 }

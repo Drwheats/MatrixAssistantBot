@@ -8,7 +8,7 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     "!help - show this help",
     "!calendar today - list next 3 events today (Google Calendar)",
     "!trello due - list due cards in the next 24h (Trello)",
-    '!trello create "TASK" DATE - create Trello card (examples: mar 10, march tenth, tomorrow, end of week, next friday, in 3 days, the 15th, 15)',
+    '!trello create "TASK" DATE - create Trello card (examples: mar 10, march tenth, tomorrow, end of week, next friday, in 3 days, in 2 hours, 2 hours from now, the 15th, 15)',
     "!trello overdue - list overdue Trello cards",
     "!grafana help - show Grafana command usage",
     "!grafana critical [window] - list critical logs",

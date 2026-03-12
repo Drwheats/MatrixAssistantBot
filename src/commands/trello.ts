@@ -192,6 +192,11 @@ function parseNaturalDate(input: string): Date | null {
   const { dateText, time } = extractTime(normalized);
   const text = dateText.replace(/^(at|by)\s+/, "");
   const now = new Date();
+  const relative = parseRelativeDuration(text);
+  if (relative !== null) {
+    return new Date(now.getTime() + relative);
+  }
+
   const inMinutesMatch = text.match(/^in\s+(\d+)\s+minutes?$/);
   if (inMinutesMatch) {
     const minutes = Number(inMinutesMatch[1]);
@@ -508,4 +513,36 @@ function extractTime(text: string): { dateText: string; time: ParsedTime | null 
   }
 
   return { dateText: text, time: null };
+}
+
+function parseRelativeDuration(text: string): number | null {
+  const normalized = text.replace(/\s+from\s+now$/, "");
+  const hoursMinutesMatch = normalized.match(
+    /^(?:in\s+)?(\d+)\s+hours?(?:\s+(\d+)\s+minutes?)?$/
+  );
+  if (hoursMinutesMatch) {
+    const hours = Number(hoursMinutesMatch[1]);
+    const minutes = Number(hoursMinutesMatch[2] ?? "0");
+    if (Number.isInteger(hours) && hours >= 0 && Number.isInteger(minutes) && minutes >= 0) {
+      return hours * 60 * 60_000 + minutes * 60_000;
+    }
+  }
+
+  const minutesMatch = normalized.match(/^(?:in\s+)?(\d+)\s+minutes?$/);
+  if (minutesMatch) {
+    const minutes = Number(minutesMatch[1]);
+    if (Number.isInteger(minutes) && minutes >= 0) {
+      return minutes * 60_000;
+    }
+  }
+
+  const hoursMatch = normalized.match(/^(?:in\s+)?(\d+)\s+hours?$/);
+  if (hoursMatch) {
+    const hours = Number(hoursMatch[1]);
+    if (Number.isInteger(hours) && hours >= 0) {
+      return hours * 60 * 60_000;
+    }
+  }
+
+  return null;
 }
