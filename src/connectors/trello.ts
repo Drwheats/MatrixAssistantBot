@@ -215,6 +215,29 @@ export class TrelloConnector {
     }
   }
 
+  async addComment(cardId: string, text: string): Promise<void> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const body = new URLSearchParams();
+    body.set("text", text);
+
+    const url = new URL(`https://api.trello.com/1/cards/${cardId}/actions/comments`);
+    url.searchParams.set("key", env.TRELLO_API_KEY!);
+    url.searchParams.set("token", env.TRELLO_API_TOKEN!);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Trello API error: ${response.status} ${response.statusText}`);
+    }
+  }
+
   async closeCard(cardId: string): Promise<void> {
     if (!env.hasTrelloCredentials) {
       throw new Error("Trello is not configured.");
@@ -247,6 +270,39 @@ export class TrelloConnector {
     const base = card.due ? new Date(card.due) : new Date();
     const next = new Date(base.getTime() + hours * 60 * 60 * 1000);
     await this.updateCardDue(cardId, next);
+  }
+
+  async moveCardToListByName(cardId: string, listName: string): Promise<void> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const target = normalizeListName(listName);
+    const lists = await this.fetchBoardLists();
+    const listId = lists.find(
+      (list) => !!list.id && !list.closed && normalizeListName(list.name ?? "") === target
+    )?.id;
+
+    if (!listId) {
+      throw new Error(`Trello list not found: ${listName}`);
+    }
+
+    const url = new URL(`https://api.trello.com/1/cards/${cardId}`);
+    url.searchParams.set("key", env.TRELLO_API_KEY!);
+    url.searchParams.set("token", env.TRELLO_API_TOKEN!);
+
+    const body = new URLSearchParams();
+    body.set("idList", listId);
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Trello API error: ${response.status} ${response.statusText}`);
+    }
   }
 
   private async fetchBoardCards(): Promise<TrelloCard[]> {

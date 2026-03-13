@@ -138,15 +138,24 @@ export async function handleTrelloReplyDescriptionMessage(
   }
 
   const cardId = createdMessageToCardId.get(replyToEventId);
-  if (!cardId) {
+  let resolvedCardId = cardId ?? null;
+  if (!resolvedCardId) {
+    const state = await ctx.stateStore.load();
+    const target = state.trelloAlertTargets?.[replyToEventId];
+    if (target) {
+      resolvedCardId = target;
+    }
+  }
+
+  if (!resolvedCardId) {
     return false;
   }
 
   try {
-    await ctx.trello.appendCardDescription(cardId, body);
+    await ctx.trello.addComment(resolvedCardId, body);
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
-      body: "Added your reply to the Trello card description."
+      body: "Added your reply as a Trello card comment."
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

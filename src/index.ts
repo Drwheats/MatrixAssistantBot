@@ -200,10 +200,10 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
 
     try {
       if (reactionKey === "✅") {
-        await trello.closeCard(cardId);
+        await trello.moveCardToListByName(cardId, "Done");
         await client.sendMessage(roomId, {
           msgtype: "m.text",
-          body: "Trello card marked complete."
+          body: "Trello card moved to Done."
         });
       } else {
         await trello.snoozeCard(cardId, 1);
