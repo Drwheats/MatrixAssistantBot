@@ -20,6 +20,12 @@ export interface BotState {
   monitorHistory: MonitorHistoryEntry[];
   monitorReviewTargets: Record<string, string[]>;
   monitorLastList: Record<string, string[]>;
+  trelloAlertTargets: Record<string, string>;
+  lastWeekdaySummaryISO?: string;
+  weatherLocationName?: string;
+  weatherLocationLat?: number;
+  weatherLocationLon?: number;
+  weatherLocationTimezone?: string;
 }
 
 export interface MonitorDefinition {
@@ -46,7 +52,8 @@ const DEFAULT_STATE: BotState = {
   monitorSeenKeys: {},
   monitorHistory: [],
   monitorReviewTargets: {},
-  monitorLastList: {}
+  monitorLastList: {},
+  trelloAlertTargets: {}
 };
 
 export class BotStateStore {
@@ -84,7 +91,14 @@ export class BotStateStore {
         monitorReviewTargets: isRecordOfStringArray(parsed.monitorReviewTargets)
           ? parsed.monitorReviewTargets
           : {},
-        monitorLastList: isRecordOfStringArray(parsed.monitorLastList) ? parsed.monitorLastList : {}
+        monitorLastList: isRecordOfStringArray(parsed.monitorLastList) ? parsed.monitorLastList : {},
+        trelloAlertTargets: isRecordOfString(parsed.trelloAlertTargets) ? parsed.trelloAlertTargets : {},
+        lastWeekdaySummaryISO: typeof parsed.lastWeekdaySummaryISO === "string" ? parsed.lastWeekdaySummaryISO : undefined,
+        weatherLocationName: typeof parsed.weatherLocationName === "string" ? parsed.weatherLocationName : undefined,
+        weatherLocationLat: typeof parsed.weatherLocationLat === "number" ? parsed.weatherLocationLat : undefined,
+        weatherLocationLon: typeof parsed.weatherLocationLon === "number" ? parsed.weatherLocationLon : undefined,
+        weatherLocationTimezone:
+          typeof parsed.weatherLocationTimezone === "string" ? parsed.weatherLocationTimezone : undefined
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -104,6 +118,7 @@ export class BotStateStore {
       ? state.monitorReviewTargets
       : undefined;
     const monitorLastList = isRecordOfStringArray(state.monitorLastList) ? state.monitorLastList : undefined;
+    const trelloAlertTargets = isRecordOfString(state.trelloAlertTargets) ? state.trelloAlertTargets : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -122,7 +137,13 @@ export class BotStateStore {
       monitorSeenKeys: monitorSeenKeys ?? current.monitorSeenKeys ?? {},
       monitorHistory: monitorHistory ?? current.monitorHistory ?? [],
       monitorReviewTargets: monitorReviewTargets ?? current.monitorReviewTargets ?? {},
-      monitorLastList: monitorLastList ?? current.monitorLastList ?? {}
+      monitorLastList: monitorLastList ?? current.monitorLastList ?? {},
+      trelloAlertTargets: trelloAlertTargets ?? current.trelloAlertTargets ?? {},
+      lastWeekdaySummaryISO: latestISO(state.lastWeekdaySummaryISO, current.lastWeekdaySummaryISO),
+      weatherLocationName: state.weatherLocationName ?? current.weatherLocationName,
+      weatherLocationLat: state.weatherLocationLat ?? current.weatherLocationLat,
+      weatherLocationLon: state.weatherLocationLon ?? current.weatherLocationLon,
+      weatherLocationTimezone: state.weatherLocationTimezone ?? current.weatherLocationTimezone
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
@@ -157,6 +178,18 @@ function isRecordOfStringArray(value: unknown): value is Record<string, string[]
   }
   for (const entry of Object.values(value)) {
     if (!Array.isArray(entry)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isRecordOfString(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  for (const entry of Object.values(value)) {
+    if (typeof entry !== "string") {
       return false;
     }
   }

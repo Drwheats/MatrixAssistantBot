@@ -1,6 +1,7 @@
 import { env } from "../config/env";
 import { BotStateStore } from "./botStateStore";
 import { UserConfigStore } from "./userConfigStore";
+import { getWeatherLocation, WeatherLocation } from "./weatherLocation";
 
 export interface BotRuntimeConfig {
   botDisplayName?: string;
@@ -11,6 +12,7 @@ export interface BotRuntimeConfig {
   globalFactcheckPrompt?: string;
   qbittorrentLabelSelector?: string;
   monitorPrompt?: string;
+  weatherLocation: WeatherLocation;
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
@@ -42,7 +44,8 @@ export async function loadBotConfig(
     globalPrompt,
     globalFactcheckPrompt,
     qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector),
-    monitorPrompt
+    monitorPrompt,
+    weatherLocation: getWeatherLocation(state)
   };
 }
 

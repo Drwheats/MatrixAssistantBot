@@ -19,6 +19,8 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     "!grafana spikes [window] - compare current/previous error rates",
     '!grafana query "LOKI_QUERY" [window] - run a raw Loki query',
     `${promptCommand} PROMPT - send a prompt to LLM Studio`,
+    `${promptCommand} weather - weather today (current location)`,
+    `${promptCommand} rundown - Trello counts, due today, and weather`,
     "!factcheck - reply to a message with this to fact check it"
   ];
 

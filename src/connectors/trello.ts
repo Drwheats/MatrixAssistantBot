@@ -101,6 +101,54 @@ export class TrelloConnector {
       .slice(0, limit);
   }
 
+  async getOpenCountsByListName(): Promise<Record<string, number>> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const [cards, lists] = await Promise.all([this.fetchBoardCards(), this.fetchBoardLists()]);
+    const listNameById = new Map(
+      lists
+        .filter((list) => !!list.id)
+        .map((list) => [list.id as string, normalizeListName(list.name ?? "")])
+    );
+
+    const counts: Record<string, number> = {};
+    for (const card of cards) {
+      if (card.closed || !card.idList) {
+        continue;
+      }
+      const listName = listNameById.get(card.idList);
+      if (!listName) {
+        continue;
+      }
+      counts[listName] = (counts[listName] ?? 0) + 1;
+    }
+
+    return counts;
+  }
+
+  async getDueToday(timeZone: string, limit = 100): Promise<TrelloCardSummary[]> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const cards = await this.fetchBoardCards();
+    const todayKey = zonedDateKey(new Date(), timeZone);
+
+    return cards
+      .filter((card) => !card.closed && !!card.due)
+      .map((card) => ({
+        id: card.id ?? "",
+        name: card.name ?? "(No title)",
+        due: card.due!,
+        url: card.shortUrl ?? ""
+      }))
+      .filter((card) => card.id.length > 0 && zonedDateKey(new Date(card.due), timeZone) === todayKey)
+      .sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime())
+      .slice(0, limit);
+  }
+
   async createCard(name: string, due: Date): Promise<TrelloCardSummary> {
     if (!env.hasTrelloCredentials) {
       throw new Error("Trello is not configured.");
@@ -165,6 +213,40 @@ export class TrelloConnector {
     if (!response.ok) {
       throw new Error(`Trello API error: ${response.status} ${response.statusText}`);
     }
+  }
+
+  async closeCard(cardId: string): Promise<void> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const url = new URL(`https://api.trello.com/1/cards/${cardId}`);
+    url.searchParams.set("key", env.TRELLO_API_KEY!);
+    url.searchParams.set("token", env.TRELLO_API_TOKEN!);
+
+    const body = new URLSearchParams();
+    body.set("closed", "true");
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Trello API error: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  async snoozeCard(cardId: string, hours = 1): Promise<void> {
+    if (!env.hasTrelloCredentials) {
+      throw new Error("Trello is not configured.");
+    }
+
+    const card = await this.fetchCard(cardId);
+    const base = card.due ? new Date(card.due) : new Date();
+    const next = new Date(base.getTime() + hours * 60 * 60 * 1000);
+    await this.updateCardDue(cardId, next);
   }
 
   private async fetchBoardCards(): Promise<TrelloCard[]> {
@@ -245,7 +327,7 @@ export class TrelloConnector {
     const url = new URL(`https://api.trello.com/1/cards/${cardId}`);
     url.searchParams.set("key", env.TRELLO_API_KEY!);
     url.searchParams.set("token", env.TRELLO_API_TOKEN!);
-    url.searchParams.set("fields", "id,desc");
+    url.searchParams.set("fields", "id,desc,due");
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -254,10 +336,47 @@ export class TrelloConnector {
 
     return (await response.json()) as TrelloCard;
   }
+
+  private async updateCardDue(cardId: string, due: Date): Promise<void> {
+    const url = new URL(`https://api.trello.com/1/cards/${cardId}`);
+    url.searchParams.set("key", env.TRELLO_API_KEY!);
+    url.searchParams.set("token", env.TRELLO_API_TOKEN!);
+
+    const body = new URLSearchParams();
+    body.set("due", due.toISOString());
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Trello API error: ${response.status} ${response.statusText}`);
+    }
+  }
 }
 
 function normalizeListName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
+}
+
+function zonedDateKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      map[part.type] = part.value;
+    }
+  }
+
+  return `${map.year}-${map.month}-${map.day}`;
 }

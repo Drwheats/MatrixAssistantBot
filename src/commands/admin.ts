@@ -11,6 +11,7 @@ import {
   readThermalStatus
 } from "../utils/sysinfo";
 import { BotState } from "../services/botStateStore";
+import { geocodeLocation, getWeatherLocation } from "../services/weatherLocation";
 
 const ADMIN_PREFIX = "!admin";
 
@@ -80,6 +81,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
 
   if (args.toLowerCase().startsWith("setmonitorprompt ")) {
     await handleSetMonitorPrompt(ctx, args.slice("setmonitorprompt ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase().startsWith("location")) {
+    await handleLocation(ctx, args.slice("location".length).trim());
     return;
   }
 
@@ -290,6 +296,7 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
     `Open mode: ${ctx.botConfig.openMode ? "ON" : "OFF"}`,
     `Admin users (.env): ${allowedUsers}`,
     `Extra allowed users: ${extraUsers}`,
+    `Location: ${ctx.botConfig.weatherLocation.name} (${ctx.botConfig.weatherLocation.timezone})`,
     `Global prompt: ${globalPrompt}`,
     `Global factcheck prompt: ${globalFactcheckPrompt}`,
     `Monitor prompt: ${monitorPrompt}`,
@@ -402,6 +409,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin open on|off|status - toggle open mode",
     "!admin listprompts - list all prompts",
     "!admin sysinfo - send system info to alerts channel",
+    "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
     '!admin setmonitorprompt "PROMPT" - set monitor prompt (use "clear" to reset)',
@@ -523,6 +531,47 @@ async function handleSetMonitorPrompt(ctx: CommandContext, rawPrompt: string): P
     msgtype: "m.text",
     body: parsed ? "Monitor prompt updated." : "Monitor prompt cleared."
   });
+}
+
+async function handleLocation(ctx: CommandContext, rawLocation: string): Promise<void> {
+  const trimmed = rawLocation.trim();
+  if (!trimmed || trimmed.toLowerCase() === "status") {
+    const location = ctx.botConfig.weatherLocation ?? getWeatherLocation();
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `Current location: ${location.name} (${location.timezone})`
+    });
+    return;
+  }
+
+  try {
+    const location = await geocodeLocation(trimmed);
+    if (!location) {
+      await ctx.client.sendMessage(ctx.roomId, {
+        msgtype: "m.text",
+        body: `Could not find a location for "${trimmed}".`
+      });
+      return;
+    }
+
+    await ctx.stateStore.save({
+      weatherLocationName: location.name,
+      weatherLocationLat: location.latitude,
+      weatherLocationLon: location.longitude,
+      weatherLocationTimezone: location.timezone
+    });
+
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `Location updated to ${location.name} (${location.timezone}).`
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `Location update failed: ${message}`
+    });
+  }
 }
 
 function parsePromptInput(value: string): string | null {

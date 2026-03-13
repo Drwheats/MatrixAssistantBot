@@ -2,11 +2,16 @@ import { MatrixClient } from "matrix-bot-sdk";
 import { TrelloConnector, TrelloCardSummary } from "../connectors/trello";
 import { env } from "../config/env";
 import { BotState, BotStateStore } from "./botStateStore";
+import { buildTrelloSummary, renderDueTodayLines } from "./trelloSummary";
+import { getWeatherLocation } from "./weatherLocation";
 
 const ANNOUNCEMENT_ROOM_NAME = "Assistant Bot Announcements";
 const WEEKLY_MINUTE = 30;
 const WEEKLY_HOUR = 10;
 const REMINDER_CHECK_INTERVAL_MS = 60_000;
+const WEEKDAY_HOUR = 9;
+const WEEKDAY_MINUTE = 30;
+const TRELLO_ALERT_TARGET_LIMIT = 2000;
 
 export class AnnouncementService {
   private intervalHandle: NodeJS.Timeout | null = null;
@@ -62,8 +67,12 @@ export class AnnouncementService {
       return;
     }
 
+    const latest = await this.stateStore.load();
+    Object.assign(state, latest);
+
     const now = new Date();
     await this.maybeSendWeeklyDigest(state, roomId, now);
+    await this.maybeSendWeekdaySummary(state, roomId, now);
     await this.maybeSendDueReminders(state, roomId, now);
   }
 
@@ -111,10 +120,7 @@ export class AnnouncementService {
         const body = `Reminder: "${task.name}" is due in 1 hour (${formatEST(task.due)} EST).${
           task.url ? ` ${task.url}` : ""
         }`;
-        await this.sendMessage(
-          roomId,
-          body
-        );
+        await this.sendTrelloAlert(state, roomId, body, task.id);
         changed = true;
       }
 
@@ -122,10 +128,7 @@ export class AnnouncementService {
         const body = `Reminder: "${task.name}" is due in 5 minutes (${formatEST(task.due)} EST).${
           task.url ? ` ${task.url}` : ""
         }`;
-        await this.sendMessage(
-          roomId,
-          body
-        );
+        await this.sendTrelloAlert(state, roomId, body, task.id);
         changed = true;
       }
     }
@@ -133,6 +136,43 @@ export class AnnouncementService {
     if (changed) {
       await this.stateStore.save(state);
     }
+  }
+
+  private async maybeSendWeekdaySummary(state: BotState, roomId: string, now: Date): Promise<void> {
+    const location = getWeatherLocation(state);
+    const parts = getZonedParts(now, location.timezone);
+    if (!parts) {
+      return;
+    }
+
+    if (!isWeekday(parts.weekday)) {
+      return;
+    }
+
+    if (parts.hour !== WEEKDAY_HOUR || parts.minute !== WEEKDAY_MINUTE) {
+      return;
+    }
+
+    const todayKey = `${parts.year}-${parts.month}-${parts.day}`;
+    const lastKey = state.lastWeekdaySummaryISO
+      ? zonedDateKey(new Date(state.lastWeekdaySummaryISO), location.timezone)
+      : null;
+    if (lastKey === todayKey) {
+      return;
+    }
+
+    const summary = await buildTrelloSummary(this.trello, location);
+    const lines = [
+      "Daily Trello summary:",
+      `To do: ${summary.todoCount}`,
+      `Pending: ${summary.pendingCount}`,
+      ...renderDueTodayLines(summary.dueToday, location.timezone),
+      `${location.name} weather today: ${summary.weather}`
+    ];
+
+    await this.sendMessage(roomId, lines.join("\n"));
+    state.lastWeekdaySummaryISO = now.toISOString();
+    await this.stateStore.save(state);
   }
 
   private isInWindow(task: TrelloCardSummary, now: Date, minutesBeforeDue: number): boolean {
@@ -164,6 +204,46 @@ export class AnnouncementService {
 
     await this.client.sendMessage(roomId, content);
   }
+
+  private async sendTrelloAlert(
+    state: BotState,
+    roomId: string,
+    body: string,
+    cardId: string
+  ): Promise<void> {
+    const eventId = await this.client.sendMessage(roomId, {
+      msgtype: "m.text",
+      body
+    });
+
+    await this.client.sendEvent(roomId, "m.reaction", {
+      "m.relates_to": {
+        rel_type: "m.annotation",
+        event_id: eventId,
+        key: "✅"
+      }
+    });
+    await this.client.sendEvent(roomId, "m.reaction", {
+      "m.relates_to": {
+        rel_type: "m.annotation",
+        event_id: eventId,
+        key: "💤"
+      }
+    });
+
+    if (!state.trelloAlertTargets) {
+      state.trelloAlertTargets = {};
+    }
+    state.trelloAlertTargets[eventId] = cardId;
+
+    const keys = Object.keys(state.trelloAlertTargets);
+    if (keys.length > TRELLO_ALERT_TARGET_LIMIT) {
+      const overflow = keys.length - TRELLO_ALERT_TARGET_LIMIT;
+      for (const key of keys.slice(0, overflow)) {
+        delete state.trelloAlertTargets[key];
+      }
+    }
+  }
 }
 
 function startOfWeekMonday(date: Date): Date {
@@ -185,4 +265,62 @@ function formatEST(value: string): string {
     minute: "2-digit",
     hour12: false
   }).format(new Date(value));
+}
+
+function getZonedParts(
+  date: Date,
+  timeZone: string
+): { year: string; month: string; day: string; hour: number; minute: number; weekday: string } | null {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short"
+  }).formatToParts(date);
+
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      map[part.type] = part.value;
+    }
+  }
+
+  if (!map.year || !map.month || !map.day || !map.hour || !map.minute || !map.weekday) {
+    return null;
+  }
+
+  return {
+    year: map.year,
+    month: map.month,
+    day: map.day,
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    weekday: map.weekday
+  };
+}
+
+function isWeekday(weekday: string): boolean {
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
+}
+
+function zonedDateKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      map[part.type] = part.value;
+    }
+  }
+
+  return `${map.year}-${map.month}-${map.day}`;
 }

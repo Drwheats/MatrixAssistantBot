@@ -1,5 +1,6 @@
 import { CommandContext } from "../types/commandContext";
 import { startLlmReactions } from "../utils/llmReactions";
+import { buildTrelloSummary, fetchWeather, renderDueTodayLines } from "../services/trelloSummary";
 
 const FACTCHECK_SYSTEM_PROMPT = "You are a fact checker. Check this post.";
 
@@ -26,6 +27,28 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
   const reactions = reactionTargetId ? startLlmReactions(ctx, reactionTargetId) : null;
 
   try {
+    const normalizedPrompt = prompt.toLowerCase();
+    if (normalizedPrompt === "weather") {
+      const location = ctx.botConfig.weatherLocation;
+      const weather = await fetchWeather(location);
+      await sendReply(ctx, ctx.eventId, `${location.name} weather today: ${weather}`);
+      return;
+    }
+
+    if (normalizedPrompt === "rundown") {
+      const location = ctx.botConfig.weatherLocation;
+      const summary = await buildTrelloSummary(ctx.trello, location);
+      const lines = [
+        "Daily Trello summary:",
+        `To do: ${summary.todoCount}`,
+        `Pending: ${summary.pendingCount}`,
+        ...renderDueTodayLines(summary.dueToday, location.timezone),
+        `${location.name} weather today: ${summary.weather}`
+      ];
+      await sendReply(ctx, ctx.eventId, lines.join("\n"));
+      return;
+    }
+
     const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt);
     await sendReply(ctx, ctx.eventId, reply);
   } catch (error) {

@@ -156,41 +156,73 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
 
   const relatesTo = event?.content?.["m.relates_to"];
   const reactionKey = relatesTo?.key;
-  if (reactionKey !== "👎") {
-    return;
-  }
-
   const targetEventId = relatesTo?.event_id;
   if (!targetEventId) {
     return;
   }
 
-  const state = await stateStore.load();
-  const monitorIds = state.monitorReviewTargets[targetEventId];
-  if (!Array.isArray(monitorIds) || monitorIds.length === 0) {
+  if (reactionKey === "👎") {
+    const state = await stateStore.load();
+    const monitorIds = state.monitorReviewTargets[targetEventId];
+    if (!Array.isArray(monitorIds) || monitorIds.length === 0) {
+      return;
+    }
+
+    const userConfig = await userConfigStore.load();
+    const remaining = userConfig.monitors.filter((monitor) => !monitorIds.includes(monitor.id));
+    if (remaining.length === userConfig.monitors.length) {
+      return;
+    }
+
+    for (const id of monitorIds) {
+      delete state.monitorSeenKeys[id];
+    }
+    delete state.monitorReviewTargets[targetEventId];
+    await userConfigStore.save({ monitors: remaining });
+    await stateStore.save({
+      monitorSeenKeys: state.monitorSeenKeys,
+      monitorReviewTargets: state.monitorReviewTargets
+    });
+
+    await client.sendMessage(roomId, {
+      msgtype: "m.text",
+      body: `Stopped monitoring ${monitorIds.length} item(s).`
+    });
     return;
   }
 
-  const userConfig = await userConfigStore.load();
-  const remaining = userConfig.monitors.filter((monitor) => !monitorIds.includes(monitor.id));
-  if (remaining.length === userConfig.monitors.length) {
-    return;
-  }
+  if (reactionKey === "✅" || reactionKey === "💤") {
+    const state = await stateStore.load();
+    const cardId = state.trelloAlertTargets?.[targetEventId];
+    if (!cardId) {
+      return;
+    }
 
-  for (const id of monitorIds) {
-    delete state.monitorSeenKeys[id];
-  }
-  delete state.monitorReviewTargets[targetEventId];
-  await userConfigStore.save({ monitors: remaining });
-  await stateStore.save({
-    monitorSeenKeys: state.monitorSeenKeys,
-    monitorReviewTargets: state.monitorReviewTargets
-  });
+    try {
+      if (reactionKey === "✅") {
+        await trello.closeCard(cardId);
+        await client.sendMessage(roomId, {
+          msgtype: "m.text",
+          body: "Trello card marked complete."
+        });
+      } else {
+        await trello.snoozeCard(cardId, 1);
+        await client.sendMessage(roomId, {
+          msgtype: "m.text",
+          body: "Trello card snoozed for 1 hour."
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      await client.sendMessage(roomId, {
+        msgtype: "m.text",
+        body: `Trello update failed: ${message}`
+      });
+    }
 
-  await client.sendMessage(roomId, {
-    msgtype: "m.text",
-    body: `Stopped monitoring ${monitorIds.length} item(s).`
-  });
+    delete state.trelloAlertTargets[targetEventId];
+    await stateStore.save({ trelloAlertTargets: state.trelloAlertTargets });
+  }
 });
 
 async function main(): Promise<void> {
