@@ -27,16 +27,10 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
 
   try {
     const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt);
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: reply
-    });
+    await sendReply(ctx, ctx.eventId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `LLM Studio error: ${message}`
-    });
+    await sendReply(ctx, ctx.eventId, `LLM Studio error: ${message}`);
   } finally {
     if (reactions) {
       await reactions.finish();

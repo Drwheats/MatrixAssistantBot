@@ -72,12 +72,18 @@ export class GrafanaSecurityLoginAlertsService {
         return;
       }
 
-      for (const entry of fresh.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp))) {
+      const ordered = fresh.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const first = ordered[0];
+      const firstBody = this.formatAlert(first.timestamp, first.message);
+      const firstEventId = await this.client.sendMessage(roomId, {
+        msgtype: "m.text",
+        body: firstBody
+      });
+      seen.add(this.entryKey(first.timestamp, first.message));
+
+      for (const entry of ordered.slice(1)) {
         const body = this.formatAlert(entry.timestamp, entry.message);
-        await this.client.sendMessage(roomId, {
-          msgtype: "m.text",
-          body
-        });
+        await this.sendReply(roomId, firstEventId, body);
         seen.add(this.entryKey(entry.timestamp, entry.message));
       }
 
@@ -125,5 +131,22 @@ export class GrafanaSecurityLoginAlertsService {
       source: match[2],
       port: match[3]
     };
+  }
+
+  private async sendReply(roomId: string, eventId: string | undefined, body: string): Promise<void> {
+    if (!eventId) {
+      await this.client.sendMessage(roomId, { msgtype: "m.text", body });
+      return;
+    }
+
+    await this.client.sendMessage(roomId, {
+      msgtype: "m.text",
+      body,
+      "m.relates_to": {
+        "m.in_reply_to": {
+          event_id: eventId
+        }
+      }
+    });
   }
 }
