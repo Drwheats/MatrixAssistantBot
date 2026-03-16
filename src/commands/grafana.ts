@@ -3,10 +3,10 @@ import { CommandContext } from "../types/commandContext";
 const DEFAULT_WINDOW = "24h";
 
 export async function handleGrafanaCommand(ctx: CommandContext): Promise<void> {
-  if (!ctx.isAllowedUser) {
+  if (!ctx.isAdminUser) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
-      body: "You are not allowed to use integration commands."
+      body: "You are not allowed to use Grafana commands."
     });
     return;
   }

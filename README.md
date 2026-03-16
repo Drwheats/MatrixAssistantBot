@@ -5,6 +5,7 @@ A Matrix bot that responds to chat commands and can pull data from:
 - Trello (`!trello due`)
 - Grafana (`!grafana critical`, `!grafana alerts`, `!grafana incident`)
 - LLM Studio (`!blimpf` by default, plus `!factcheck`)
+- Seerr (Jellyseerr) (`!blimpf download`)
 - Grafana security login alerts (optional, posts SSH password logins to Grafana Alerts room)
 - Grafana qbittorrent alerts (optional, posts downloads started/finished to Grafana Alerts room)
 
@@ -50,13 +51,27 @@ npm start
 - `!grafana spikes [window]`
 - `!grafana query "LOKI_QUERY" [window]`
 - `!blimpf PROMPT` (default prompt command; can be renamed)
+- `!blimpf download MOVIE`
+- `!blimpf weather`
+- `!blimpf rundown`
 - `!factcheck` (reply to a message)
 - `!admin rename "NAME" [!command]`
 - `!admin command !name`
 - `!admin allow @user:server`
 - `!admin deny @user:server`
+- `!admin allowseerr @user:server`
+- `!admin denyseerr @user:server`
+- `!admin users`
 - `!admin open on|off|status`
+- `!admin listprompts`
+- `!admin promptinfo`
+- `!admin sysinfo`
+- `!admin location NAME`
+- `!admin setglobalprompt "PROMPT"`
+- `!admin setglobalfactcheckprompt "PROMPT"`
+- `!admin setmonitorprompt "PROMPT"`
 - `!admin status`
+- `!admin monitors`
 - `!admin showmonitoring [N]`
 - `!admin showmonitor [N]`
 - `!admin monitor show [N]`
@@ -64,7 +79,6 @@ npm start
 - `!admin unmonitor name`
 - `!admin monitor "container" "sample log"`
 - `!admin monitorlabel name key=value`
-- `!admin setmonitorprompt "PROMPT"`
 - `!admin setqbitlabel "{label=\"value\"}"`
 - `!admin addqbitlabel key=value`
 - `!admin clearqbitlabel`

@@ -26,6 +26,9 @@ export interface BotState {
   weatherLocationLat?: number;
   weatherLocationLon?: number;
   weatherLocationTimezone?: string;
+  seerrRequestTargets: Record<string, SeerrRequestTarget>;
+  seerrRequestOrder: string[];
+  seerrAllowedUsers: string[];
 }
 
 export interface MonitorDefinition {
@@ -43,6 +46,11 @@ export interface MonitorHistoryEntry {
   createdAt: string;
 }
 
+export interface SeerrRequestTarget {
+  createdAt: string;
+  items: Array<{ id: number; title: string }>;
+}
+
 const DEFAULT_STATE: BotState = {
   sentReminderKeys: [],
   securityLoginSeenKeys: [],
@@ -53,7 +61,10 @@ const DEFAULT_STATE: BotState = {
   monitorHistory: [],
   monitorReviewTargets: {},
   monitorLastList: {},
-  trelloAlertTargets: {}
+  trelloAlertTargets: {},
+  seerrRequestTargets: {},
+  seerrRequestOrder: [],
+  seerrAllowedUsers: []
 };
 
 export class BotStateStore {
@@ -98,7 +109,10 @@ export class BotStateStore {
         weatherLocationLat: typeof parsed.weatherLocationLat === "number" ? parsed.weatherLocationLat : undefined,
         weatherLocationLon: typeof parsed.weatherLocationLon === "number" ? parsed.weatherLocationLon : undefined,
         weatherLocationTimezone:
-          typeof parsed.weatherLocationTimezone === "string" ? parsed.weatherLocationTimezone : undefined
+          typeof parsed.weatherLocationTimezone === "string" ? parsed.weatherLocationTimezone : undefined,
+        seerrRequestTargets: isRecordOfSeerrTarget(parsed.seerrRequestTargets) ? parsed.seerrRequestTargets : {},
+        seerrRequestOrder: Array.isArray(parsed.seerrRequestOrder) ? parsed.seerrRequestOrder : [],
+        seerrAllowedUsers: Array.isArray(parsed.seerrAllowedUsers) ? parsed.seerrAllowedUsers : []
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -119,6 +133,11 @@ export class BotStateStore {
       : undefined;
     const monitorLastList = isRecordOfStringArray(state.monitorLastList) ? state.monitorLastList : undefined;
     const trelloAlertTargets = isRecordOfString(state.trelloAlertTargets) ? state.trelloAlertTargets : undefined;
+    const seerrRequestTargets = isRecordOfSeerrTarget(state.seerrRequestTargets)
+      ? state.seerrRequestTargets
+      : undefined;
+    const seerrRequestOrder = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder : undefined;
+    const seerrAllowedUsers = Array.isArray(state.seerrAllowedUsers) ? state.seerrAllowedUsers : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -143,7 +162,10 @@ export class BotStateStore {
       weatherLocationName: state.weatherLocationName ?? current.weatherLocationName,
       weatherLocationLat: state.weatherLocationLat ?? current.weatherLocationLat,
       weatherLocationLon: state.weatherLocationLon ?? current.weatherLocationLon,
-      weatherLocationTimezone: state.weatherLocationTimezone ?? current.weatherLocationTimezone
+      weatherLocationTimezone: state.weatherLocationTimezone ?? current.weatherLocationTimezone,
+      seerrRequestTargets: seerrRequestTargets ?? current.seerrRequestTargets ?? {},
+      seerrRequestOrder: seerrRequestOrder ?? current.seerrRequestOrder ?? [],
+      seerrAllowedUsers: seerrAllowedUsers ?? current.seerrAllowedUsers ?? []
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
@@ -190,6 +212,43 @@ function isRecordOfString(value: unknown): value is Record<string, string> {
   }
   for (const entry of Object.values(value)) {
     if (typeof entry !== "string") {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isRecordOfSeerrTarget(value: unknown): value is Record<string, SeerrRequestTarget> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  for (const entry of Object.values(value)) {
+    if (!isSeerrTarget(entry)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isSeerrTarget(value: unknown): value is SeerrRequestTarget {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const target = value as SeerrRequestTarget;
+  if (typeof target.createdAt !== "string") {
+    return false;
+  }
+  if (!Array.isArray(target.items)) {
+    return false;
+  }
+  for (const item of target.items) {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+    if (typeof (item as { id?: number }).id !== "number") {
+      return false;
+    }
+    if (typeof (item as { title?: string }).title !== "string") {
       return false;
     }
   }

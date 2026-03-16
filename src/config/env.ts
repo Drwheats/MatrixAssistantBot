@@ -43,6 +43,9 @@ const envSchema = z.object({
   LLM_STUDIO_GLOBAL_PROMPT: z.string().optional(),
   LLM_STUDIO_FACTCHECK_PROMPT: z.string().optional(),
 
+  JELLYSEERR_URL: z.string().url().optional(),
+  JELLYSEERR_API_KEY: z.string().optional(),
+
   PORT: z.coerce.number().default(3000)
 });
 
@@ -73,6 +76,7 @@ export const env = {
     !!parsed.data.GRAFANA_URL &&
     !!parsed.data.GRAFANA_TOKEN &&
     !!parsed.data.GRAFANA_LOKI_DATASOURCE_UID,
+  hasJellyseerrCredentials: !!parsed.data.JELLYSEERR_URL && !!parsed.data.JELLYSEERR_API_KEY,
   grafanaSecurityLoginEnabled:
     parsed.data.GRAFANA_SECURITY_LOGIN_ALERTS_ENABLED ??
     !!parsed.data.GRAFANA_SECURITY_LOGIN_QUERY,

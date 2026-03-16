@@ -2,10 +2,11 @@ import { AutojoinRoomsMixin, LogLevel, LogService, MatrixClient, SimpleFsStorage
 import { env } from "./config/env";
 import { GoogleCalendarConnector } from "./connectors/googleCalendar";
 import { GrafanaConnector } from "./connectors/grafana";
+import { JellyseerrConnector } from "./connectors/jellyseerr";
 import { TrelloConnector } from "./connectors/trello";
 import { routeCommand } from "./commands/router";
 import { handleTrelloReplyDescriptionMessage } from "./commands/trello";
-import { handleFactcheckReplyMessage } from "./commands/llmStudio";
+import { handleBlimpfDownloadReplyMessage, handleFactcheckReplyMessage } from "./commands/llmStudio";
 import { BotStateStore } from "./services/botStateStore";
 import { isAdminUser, isAllowedUser, loadBotConfig } from "./services/botConfig";
 import { AnnouncementService } from "./services/announcements";
@@ -28,6 +29,7 @@ const googleCalendar = new GoogleCalendarConnector();
 const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
 const llmStudio = new LlmStudioConnector();
+const jellyseerr = new JellyseerrConnector();
 const stateStore = new BotStateStore("assistant-state.json");
 const userConfigStore = new UserConfigStore("user-config.json");
 const announcementService = new AnnouncementService(client, trello, stateStore);
@@ -85,11 +87,37 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       googleCalendar,
       trello,
       grafana,
-      llmStudio
+      llmStudio,
+      jellyseerr
     },
     event
   );
   if (handledReply) {
+    return;
+  }
+
+  const handledSeerrReply = await handleBlimpfDownloadReplyMessage(
+    {
+      client,
+      roomId,
+      sender,
+      eventId: event?.event_id,
+      commandBody: body,
+      isAllowedUser: isAllowedUserFlag,
+      isAdminUser: isAdminUserFlag,
+      botConfig,
+      stateStore,
+      userConfigStore,
+      alertsChannel: grafanaAlertsChannelService,
+      googleCalendar,
+      trello,
+      grafana,
+      llmStudio,
+      jellyseerr
+    },
+    event
+  );
+  if (handledSeerrReply) {
     return;
   }
 
@@ -109,7 +137,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       googleCalendar,
       trello,
       grafana,
-      llmStudio
+      llmStudio,
+      jellyseerr
     },
     event
   );
@@ -136,7 +165,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     googleCalendar,
     trello,
     grafana,
-    llmStudio
+    llmStudio,
+    jellyseerr
   });
 });
 

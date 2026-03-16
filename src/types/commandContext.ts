@@ -3,6 +3,7 @@ import { GoogleCalendarConnector } from "../connectors/googleCalendar";
 import { TrelloConnector } from "../connectors/trello";
 import { GrafanaConnector } from "../connectors/grafana";
 import { LlmStudioConnector } from "../connectors/llmStudio";
+import { JellyseerrConnector } from "../connectors/jellyseerr";
 import { BotStateStore } from "../services/botStateStore";
 import { BotRuntimeConfig } from "../services/botConfig";
 import { UserConfigStore } from "../services/userConfigStore";
@@ -24,4 +25,5 @@ export interface CommandContext {
   trello: TrelloConnector;
   grafana: GrafanaConnector;
   llmStudio: LlmStudioConnector;
+  jellyseerr: JellyseerrConnector;
 }

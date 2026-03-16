@@ -200,8 +200,28 @@ Admin prompt overrides:
 - `!admin setglobalprompt "PROMPT"`
 - `!admin setglobalfactcheckprompt "PROMPT"`
 - `!admin setmonitorprompt "PROMPT"`
+- `!admin promptinfo` (show the prompt command and system prompts)
 
-## Step 9: Run bot
+## Step 9: Configure Seerr (optional)
+
+Required for:
+- `!blimpf download MOVIE`
+
+1. Open Seerr (Jellyseerr) and generate an API key.
+2. Put these in `.env`:
+   - `JELLYSEERR_URL` (example `http://localhost:5055`)
+   - `JELLYSEERR_API_KEY`
+
+Test in room:
+- `!blimpf download The Matrix`
+- Reply with `1` to request the first result.
+
+Admin commands:
+- `!admin allowseerr @user:server` (allow a user to request movies)
+- `!admin denyseerr @user:server` (revoke Seerr access)
+- `!admin users` (list user permissions)
+
+## Step 10: Run bot
 
 Development:
 
@@ -222,4 +242,5 @@ npm start
 - `Google Calendar is not configured`: one or more Google env vars are missing.
 - `Trello is not configured`: one or more Trello env vars are missing.
 - `Grafana is not configured`: one or more Grafana env vars are missing.
+- `Seerr is not configured`: one or more Seerr env vars are missing.
 - No bot reply: confirm bot is in room, token is valid, and homeserver URL is correct.

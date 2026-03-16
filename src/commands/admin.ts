@@ -17,14 +17,6 @@ const ADMIN_PREFIX = "!admin";
 
 export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
   if (!ctx.isAdminUser) {
-    const reason =
-      env.allowedUsers.length === 0
-        ? "Admin commands are disabled because MATRIX_ALLOWED_USERS is empty."
-        : "You are not allowed to use admin commands.";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: reason
-    });
     return;
   }
 
@@ -54,6 +46,21 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (args.toLowerCase().startsWith("allowseerr ")) {
+    await handleAllowSeerrUser(ctx, args.slice("allowseerr ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase().startsWith("denyseerr ")) {
+    await handleDenySeerrUser(ctx, args.slice("denyseerr ".length).trim());
+    return;
+  }
+
+  if (args.toLowerCase() === "users") {
+    await handleListUsers(ctx);
+    return;
+  }
+
   if (args.toLowerCase().startsWith("open ")) {
     await handleOpenMode(ctx, args.slice("open ".length).trim());
     return;
@@ -61,6 +68,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
 
   if (args.toLowerCase() === "listprompts") {
     await handleListPrompts(ctx);
+    return;
+  }
+
+  if (args.toLowerCase() === "promptinfo") {
+    await handlePromptInfo(ctx);
     return;
   }
 
@@ -249,6 +261,103 @@ async function handleDenyUser(ctx: CommandContext, rawUser: string): Promise<voi
   });
 }
 
+async function handleAllowSeerrUser(ctx: CommandContext, rawUser: string): Promise<void> {
+  const userId = normalizeUserId(rawUser);
+  if (!userId) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "Usage: !admin allowseerr @user:server"
+    });
+    return;
+  }
+
+  const current = Array.isArray(ctx.botConfig.seerrAllowedUsers) ? ctx.botConfig.seerrAllowedUsers : [];
+  if (current.includes(userId)) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `${userId} is already allowed to request movies.`
+    });
+    return;
+  }
+
+  const updated = [...current, userId];
+  await ctx.stateStore.save({ seerrAllowedUsers: updated });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: `${userId} can now request movies.`
+  });
+}
+
+async function handleDenySeerrUser(ctx: CommandContext, rawUser: string): Promise<void> {
+  const userId = normalizeUserId(rawUser);
+  if (!userId) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "Usage: !admin denyseerr @user:server"
+    });
+    return;
+  }
+
+  const current = Array.isArray(ctx.botConfig.seerrAllowedUsers) ? ctx.botConfig.seerrAllowedUsers : [];
+  if (!current.includes(userId)) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `${userId} is not in the Seerr allowed list.`
+    });
+    return;
+  }
+
+  const updated = current.filter((id) => id !== userId);
+  await ctx.stateStore.save({ seerrAllowedUsers: updated });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: `${userId} can no longer request movies.`
+  });
+}
+
+async function handleListUsers(ctx: CommandContext): Promise<void> {
+  const adminUsers = env.allowedUsers;
+  const promptUsers = ctx.botConfig.extraAllowedUsers;
+  const seerrUsers = ctx.botConfig.seerrAllowedUsers;
+
+  const all = new Set<string>();
+  for (const user of adminUsers) {
+    all.add(user);
+  }
+  for (const user of promptUsers) {
+    all.add(user);
+  }
+  for (const user of seerrUsers) {
+    all.add(user);
+  }
+
+  const rows = Array.from(all)
+    .sort((a, b) => a.localeCompare(b))
+    .map((user) => ({
+      user,
+      admin: adminUsers.includes(user) ? "Yes" : "No",
+      prompts: ctx.botConfig.openMode
+        ? "Open"
+        : adminUsers.includes(user) || promptUsers.includes(user)
+          ? "Yes"
+          : "No",
+      seerr: adminUsers.includes(user) || seerrUsers.includes(user) ? "Yes" : "No"
+    }));
+
+  const lines = [
+    "User permissions:",
+    formatUserTable(rows),
+    ctx.botConfig.openMode
+      ? "Note: Open mode is ON, so anyone can use prompt commands regardless of the list above."
+      : ""
+  ].filter((line) => line.length > 0);
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: lines.join("\n")
+  });
+}
+
 async function handleOpenMode(ctx: CommandContext, arg: string): Promise<void> {
   const normalized = arg.trim().toLowerCase();
   if (normalized === "on") {
@@ -286,6 +395,7 @@ async function handleOpenMode(ctx: CommandContext, arg: string): Promise<void> {
 async function handleStatus(ctx: CommandContext): Promise<void> {
   const allowedUsers = env.allowedUsers.length > 0 ? env.allowedUsers.join(", ") : "(none)";
   const extraUsers = ctx.botConfig.extraAllowedUsers.length > 0 ? ctx.botConfig.extraAllowedUsers.join(", ") : "(none)";
+  const seerrUsers = ctx.botConfig.seerrAllowedUsers.length > 0 ? ctx.botConfig.seerrAllowedUsers.join(", ") : "(none)";
   const globalPrompt = ctx.botConfig.globalPrompt ? "set" : "(unset)";
   const globalFactcheckPrompt = ctx.botConfig.globalFactcheckPrompt ? "set" : "(unset)";
   const monitorPrompt = ctx.botConfig.monitorPrompt ? "set" : "(unset)";
@@ -296,6 +406,7 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
     `Open mode: ${ctx.botConfig.openMode ? "ON" : "OFF"}`,
     `Admin users (.env): ${allowedUsers}`,
     `Extra allowed users: ${extraUsers}`,
+    `Seerr allowed users: ${seerrUsers}`,
     `Location: ${ctx.botConfig.weatherLocation.name} (${ctx.botConfig.weatherLocation.timezone})`,
     `Global prompt: ${globalPrompt}`,
     `Global factcheck prompt: ${globalFactcheckPrompt}`,
@@ -315,6 +426,21 @@ async function handleListPrompts(ctx: CommandContext): Promise<void> {
     `Global prompt: ${formatPrompt(ctx.botConfig.globalPrompt)}`,
     `Global factcheck prompt: ${formatPrompt(ctx.botConfig.globalFactcheckPrompt)}`,
     `Monitor prompt: ${formatPrompt(ctx.botConfig.monitorPrompt)}`
+  ];
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: lines.join("\n")
+  });
+}
+
+async function handlePromptInfo(ctx: CommandContext): Promise<void> {
+  const promptCommand = ctx.botConfig.promptCommand;
+  const lines = [
+    "Prompt info:",
+    `LLM command: ${promptCommand} YOUR_QUESTION`,
+    `System prompt: ${formatPrompt(ctx.botConfig.globalPrompt)}`,
+    `Factcheck system prompt: ${formatPrompt(ctx.botConfig.globalFactcheckPrompt ?? "You are a fact checker.")}`
   ];
 
   await ctx.client.sendMessage(ctx.roomId, {
@@ -399,6 +525,33 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
 }
 
+function formatUserTable(
+  rows: Array<{ user: string; admin: string; prompts: string; seerr: string }>
+): string {
+  if (rows.length === 0) {
+    return "No users configured.";
+  }
+
+  const header = ["User", "Admin", "Prompts", "Seerr"];
+  const widths = [
+    Math.max(header[0].length, ...rows.map((row) => row.user.length)),
+    Math.max(header[1].length, ...rows.map((row) => row.admin.length)),
+    Math.max(header[2].length, ...rows.map((row) => row.prompts.length)),
+    Math.max(header[3].length, ...rows.map((row) => row.seerr.length))
+  ];
+
+  const pad = (value: string, width: number) => value.padEnd(width, " ");
+  const formatRow = (values: string[]) => values.map((value, idx) => pad(value, widths[idx])).join(" | ");
+
+  const lines = [
+    formatRow(header),
+    widths.map((width) => "-".repeat(width)).join("-|-"),
+    ...rows.map((row) => formatRow([row.user, row.admin, row.prompts, row.seerr]))
+  ];
+
+  return lines.join("\n");
+}
+
 async function sendAdminHelp(ctx: CommandContext): Promise<void> {
   const lines = [
     "Admin commands:",
@@ -406,8 +559,12 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin command !name - set the prompt command",
     "!admin allow @user:server - allow a new user",
     "!admin deny @user:server - revoke a user",
+    "!admin allowseerr @user:server - allow a user to request movies",
+    "!admin denyseerr @user:server - revoke Seerr access",
+    "!admin users - list users and permissions",
     "!admin open on|off|status - toggle open mode",
     "!admin listprompts - list all prompts",
+    "!admin promptinfo - show LLM command and system prompts",
     "!admin sysinfo - send system info to alerts channel",
     "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',

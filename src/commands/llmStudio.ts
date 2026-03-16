@@ -1,18 +1,12 @@
 import { CommandContext } from "../types/commandContext";
+import { JellyseerrMovieDetails, JellyseerrSearchResult } from "../connectors/jellyseerr";
 import { startLlmReactions } from "../utils/llmReactions";
 import { buildTrelloSummary, fetchWeather, renderDueTodayLines } from "../services/trelloSummary";
 
 const FACTCHECK_SYSTEM_PROMPT = "You are a fact checker. Check this post.";
+const SEERR_REPLY_LIMIT = 500;
 
 export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
-  if (!ctx.isAllowedUser) {
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: "You are not allowed to use integration commands."
-    });
-    return;
-  }
-
   const promptCommand = ctx.botConfig.promptCommand;
   const prompt = extractPrompt(ctx.commandBody, promptCommand);
   if (!prompt) {
@@ -23,10 +17,37 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  const downloadMatch = prompt.match(/^download\s+([\s\S]+)$/i);
+  if (downloadMatch) {
+    if (!canUseSeerr(ctx)) {
+      await ctx.client.sendMessage(ctx.roomId, {
+        msgtype: "m.text",
+        body: "You are not allowed to request movies."
+      });
+      return;
+    }
+  } else if (!ctx.isAllowedUser) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "You are not allowed to use integration commands."
+    });
+    return;
+  }
+
   const reactionTargetId = ctx.eventId ?? null;
   const reactions = reactionTargetId ? startLlmReactions(ctx, reactionTargetId) : null;
 
   try {
+    if (downloadMatch) {
+      const query = downloadMatch[1].trim();
+      if (!query) {
+        await sendReply(ctx, ctx.eventId, `Usage: ${promptCommand} download MOVIE NAME`);
+        return;
+      }
+      await handleBlimpfDownload(ctx, query);
+      return;
+    }
+
     const normalizedPrompt = prompt.toLowerCase();
     if (normalizedPrompt === "weather") {
       const location = ctx.botConfig.weatherLocation;
@@ -74,6 +95,50 @@ export async function handleFactcheckCommand(ctx: CommandContext): Promise<void>
     msgtype: "m.text",
     body: "Usage: reply to a message with !factcheck to check the original post."
   });
+}
+
+export async function handleBlimpfDownloadReplyMessage(
+  ctx: CommandContext,
+  event: Record<string, any>
+): Promise<boolean> {
+  if (!canUseSeerr(ctx)) {
+    return false;
+  }
+
+  const body = String(event?.content?.body ?? "").trim();
+  const selectionMatch = body.match(/^([1-5])\s*$/);
+  if (!selectionMatch) {
+    return false;
+  }
+
+  const replyToEventId = getReplyToEventId(event);
+  if (!replyToEventId) {
+    return false;
+  }
+
+  const state = await ctx.stateStore.load();
+  const target = state.seerrRequestTargets?.[replyToEventId];
+  if (!target) {
+    return false;
+  }
+
+  const index = Number(selectionMatch[1]) - 1;
+  const selection = target.items[index];
+  if (!selection) {
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, "Selection out of range. Reply with a number 1-5.");
+    return true;
+  }
+
+  try {
+    await ctx.jellyseerr.requestMovie(selection.id);
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, `Requested: ${selection.title}`);
+    await dropSeerrTarget(ctx, replyToEventId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await sendReply(ctx, event?.event_id ?? ctx.eventId, `Seerr error: ${message}`);
+  }
+
+  return true;
 }
 
 export async function handleFactcheckReplyMessage(
@@ -129,6 +194,107 @@ export async function handleFactcheckReplyMessage(
   return true;
 }
 
+async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise<void> {
+  try {
+    const results = await ctx.jellyseerr.search(query);
+    const movies = results
+      .filter(isMovieResult)
+      .filter((movie) => Number.isInteger(movie.id))
+      .slice(0, 5);
+
+    if (movies.length === 0) {
+      await sendReply(ctx, ctx.eventId, `No movie results found for "${query}".`);
+      return;
+    }
+
+    const details = await Promise.all(
+      movies.map(async (movie) => ({
+        movie,
+        details: movie.id ? await ctx.jellyseerr.getMovieDetails(movie.id) : null
+      }))
+    );
+
+    const lines = [
+      `Top ${movies.length} Seerr results for "${query}":`,
+      "Reply in this thread with a number (1-5) to request the movie."
+    ];
+
+    details.forEach(({ movie, details }, index) => {
+      const title = movie.title ?? details?.title ?? "Untitled";
+      const releaseDate = details?.releaseDate ?? movie.releaseDate ?? "Unknown";
+      const director = extractDirector(details);
+      const language = formatLanguage(details, movie) ?? "Unknown";
+      const overview = shortenText(details?.overview ?? movie.overview ?? "No description available.");
+      lines.push(
+        `${index + 1}. ${title}`,
+        `Director: ${director} | Released: ${releaseDate} | Language: ${language}`,
+        `Description: ${overview}`
+      );
+    });
+
+    const eventId = await sendReplyWithEventId(ctx, ctx.eventId, lines.join("\n"));
+    if (eventId) {
+      await rememberSeerrTarget(
+        ctx,
+        eventId,
+        details.map(({ movie, details }) => ({
+          id: movie.id ?? 0,
+          title: movie.title ?? details?.title ?? "Untitled"
+        }))
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await sendReply(ctx, ctx.eventId, `Seerr error: ${message}`);
+  }
+}
+
+function isMovieResult(result: JellyseerrSearchResult): boolean {
+  if (!result) {
+    return false;
+  }
+  const mediaType = result.mediaType?.toLowerCase();
+  if (mediaType) {
+    return mediaType === "movie";
+  }
+  return !!result.title;
+}
+
+function extractDirector(details: JellyseerrMovieDetails | null): string {
+  const crew = details?.credits?.crew ?? details?.crew;
+  const director = crew?.find((member) => member.job?.toLowerCase() === "director");
+  return director?.name ?? "Unknown";
+}
+
+function formatLanguage(details: JellyseerrMovieDetails | null, result: JellyseerrSearchResult): string | null {
+  const spoken = details?.spokenLanguages?.[0];
+  if (spoken?.englishName) {
+    return spoken.englishName;
+  }
+  if (spoken?.name) {
+    return spoken.name;
+  }
+  if (spoken?.iso_639_1) {
+    return spoken.iso_639_1;
+  }
+  return details?.originalLanguage ?? result.originalLanguage ?? null;
+}
+
+function shortenText(value: string, maxLength = 220): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function canUseSeerr(ctx: CommandContext): boolean {
+  if (ctx.isAdminUser) {
+    return true;
+  }
+  return ctx.botConfig.seerrAllowedUsers.includes(ctx.sender);
+}
+
 function extractPrompt(commandBody: string, command: string): string | null {
   const escaped = escapeRegExp(command);
   const match = commandBody.match(new RegExp(`^${escaped}\\s+([\\s\\S]+)$`, "i"));
@@ -163,6 +329,86 @@ async function sendReply(ctx: CommandContext, eventId: string | undefined, body:
         event_id: eventId
       }
     }
+  });
+}
+
+async function sendReplyWithEventId(
+  ctx: CommandContext,
+  eventId: string | undefined,
+  body: string
+): Promise<string | undefined> {
+  if (!eventId) {
+    return ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body
+    });
+  }
+
+  return ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body,
+    "m.relates_to": {
+      "m.in_reply_to": {
+        event_id: eventId
+      }
+    }
+  });
+}
+
+async function rememberSeerrTarget(
+  ctx: CommandContext,
+  eventId: string,
+  items: Array<{ id: number; title: string }>
+): Promise<void> {
+  const filtered = items.filter((item) => Number.isInteger(item.id) && item.id > 0);
+  if (filtered.length === 0) {
+    return;
+  }
+
+  const state = await ctx.stateStore.load();
+  const targets = { ...(state.seerrRequestTargets ?? {}) };
+  const order = Array.isArray(state.seerrRequestOrder) ? [...state.seerrRequestOrder] : [];
+
+  const existingIndex = order.indexOf(eventId);
+  if (existingIndex >= 0) {
+    order.splice(existingIndex, 1);
+  }
+
+  targets[eventId] = {
+    createdAt: new Date().toISOString(),
+    items: filtered.map((item) => ({ id: item.id, title: item.title }))
+  };
+  order.push(eventId);
+
+  if (order.length > SEERR_REPLY_LIMIT) {
+    const overflow = order.length - SEERR_REPLY_LIMIT;
+    for (let i = 0; i < overflow; i += 1) {
+      const stale = order.shift();
+      if (stale) {
+        delete targets[stale];
+      }
+    }
+  }
+
+  await ctx.stateStore.save({
+    seerrRequestTargets: targets,
+    seerrRequestOrder: order
+  });
+}
+
+async function dropSeerrTarget(ctx: CommandContext, eventId: string): Promise<void> {
+  const state = await ctx.stateStore.load();
+  if (!state.seerrRequestTargets?.[eventId]) {
+    return;
+  }
+
+  const targets = { ...state.seerrRequestTargets };
+  delete targets[eventId];
+
+  const order = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder.filter((id) => id !== eventId) : [];
+  await ctx.stateStore.save({
+    seerrRequestTargets: targets,
+    seerrRequestOrder: order
   });
 }
 

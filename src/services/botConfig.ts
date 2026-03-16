@@ -13,6 +13,7 @@ export interface BotRuntimeConfig {
   qbittorrentLabelSelector?: string;
   monitorPrompt?: string;
   weatherLocation: WeatherLocation;
+  seerrAllowedUsers: string[];
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
@@ -45,7 +46,8 @@ export async function loadBotConfig(
     globalFactcheckPrompt,
     qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector),
     monitorPrompt,
-    weatherLocation: getWeatherLocation(state)
+    weatherLocation: getWeatherLocation(state),
+    seerrAllowedUsers: Array.isArray(state.seerrAllowedUsers) ? state.seerrAllowedUsers : []
   };
 }
 
