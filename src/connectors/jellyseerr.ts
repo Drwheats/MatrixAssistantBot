@@ -33,7 +33,8 @@ export class JellyseerrConnector {
     }
 
     const url = this.buildApiUrl("/search");
-    url.searchParams.set("query", query);
+    const cleanedQuery = query.trim().replace(/\s+/g, " ");
+    url.search = `?query=${encodeURIComponent(cleanedQuery)}`;
 
     const payload = await this.request<JellyseerrSearchResponse>(url.toString());
     return Array.isArray(payload?.results) ? payload.results : [];
