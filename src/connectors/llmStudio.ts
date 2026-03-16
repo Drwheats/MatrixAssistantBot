@@ -25,8 +25,7 @@ export class LlmStudioConnector {
       const body: Record<string, unknown> = {
         model: env.LLM_STUDIO_MODEL,
         ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
-        input: prompt,
-        enable_thinking: false
+        input: prompt
       };
 
       if (typeof env.llmStudioTemperature === "number") {
