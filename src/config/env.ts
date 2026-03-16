@@ -90,7 +90,7 @@ export const env = {
   hasLlmStudioCredentials: !!parsed.data.LLM_STUDIO_MODEL,
   llmStudioTemperature: parsed.data.LLM_STUDIO_TEMPERATURE ?? 0.2,
   llmStudioMaxTokens: parsed.data.LLM_STUDIO_MAX_TOKENS ?? 700,
-  llmStudioTimeoutMs: parsed.data.LLM_STUDIO_TIMEOUT_MS ?? 30_000,
+  llmStudioTimeoutMs: parsed.data.LLM_STUDIO_TIMEOUT_MS ?? 120_000,
   llmStudioGlobalPrompt: parsed.data.LLM_STUDIO_GLOBAL_PROMPT,
   llmStudioFactcheckPrompt: parsed.data.LLM_STUDIO_FACTCHECK_PROMPT
 };

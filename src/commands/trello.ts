@@ -1,4 +1,5 @@
 import { CommandContext } from "../types/commandContext";
+import { sendErrorReply } from "../utils/errorReactions";
 
 const createdMessageToCardId = new Map<string, string>();
 const createdMessageOrder: string[] = [];
@@ -35,10 +36,7 @@ export async function handleTrelloDueCommand(ctx: CommandContext): Promise<void>
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `Trello error: ${message}`
-    });
+    await sendErrorReply(ctx, ctx.eventId, `Trello error: ${message}`);
   }
 }
 
@@ -67,10 +65,7 @@ export async function handleTrelloOverdueCommand(ctx: CommandContext): Promise<v
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `Trello error: ${message}`
-    });
+    await sendErrorReply(ctx, ctx.eventId, `Trello error: ${message}`);
   }
 }
 
@@ -112,10 +107,7 @@ export async function handleTrelloCreateCommand(ctx: CommandContext): Promise<vo
     rememberCreatedCardMessage(eventId, card.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `Trello error: ${message}`
-    });
+    await sendErrorReply(ctx, ctx.eventId, `Trello error: ${message}`);
   }
 }
 
@@ -159,10 +151,7 @@ export async function handleTrelloReplyDescriptionMessage(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `Trello error: ${message}`
-    });
+    await sendErrorReply(ctx, ctx.eventId, `Trello error: ${message}`);
   }
 
   return true;

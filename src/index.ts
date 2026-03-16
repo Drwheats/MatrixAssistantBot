@@ -191,6 +191,29 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
     return;
   }
 
+  if (reactionKey === "❓" || reactionKey === "?") {
+    const state = await stateStore.load();
+    const errorMessage = state.errorReactionTargets?.[targetEventId];
+    if (!errorMessage) {
+      return;
+    }
+
+    await client.sendMessage(roomId, {
+      msgtype: "m.text",
+      body: errorMessage,
+      "m.relates_to": {
+        "m.in_reply_to": {
+          event_id: targetEventId
+        }
+      }
+    });
+
+    const nextTargets = { ...state.errorReactionTargets };
+    delete nextTargets[targetEventId];
+    await stateStore.save({ errorReactionTargets: nextTargets });
+    return;
+  }
+
   if (reactionKey === "👎") {
     const state = await stateStore.load();
     const monitorIds = state.monitorReviewTargets[targetEventId];

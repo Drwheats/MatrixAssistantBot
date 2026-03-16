@@ -32,33 +32,57 @@ export class LlmStudioConnector {
         body.temperature = env.llmStudioTemperature;
       }
 
-      const response = await fetch(buildChatUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(env.LLM_STUDIO_API_KEY ? { Authorization: `Bearer ${env.LLM_STUDIO_API_KEY}` } : {})
-        },
-        body: JSON.stringify(body),
-        signal: timeoutSignal(env.llmStudioTimeoutMs)
-      });
+      const baseTimeout = env.llmStudioTimeoutMs;
+      const timeouts = [baseTimeout, Math.max(baseTimeout * 2, baseTimeout + 30_000)];
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`LLM Studio error: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt < timeouts.length; attempt += 1) {
+        try {
+          const response = await fetch(buildChatUrl(), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(env.LLM_STUDIO_API_KEY ? { Authorization: `Bearer ${env.LLM_STUDIO_API_KEY}` } : {})
+            },
+            body: JSON.stringify(body),
+            signal: timeoutSignal(timeouts[attempt])
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`LLM Studio error: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
+          }
+
+          const data = (await response.json()) as ChatCompletionResponse;
+          if (data.error) {
+            const message = typeof data.error === "string" ? data.error : data.error.message ?? "Unknown error";
+            if (attempt < timeouts.length - 1 && isTimeoutMessage(message)) {
+              lastError = new Error(`LLM Studio error: ${message}`);
+              continue;
+            }
+            throw new Error(`LLM Studio error: ${message}`);
+          }
+
+          const content = extractContent(data);
+          if (!content) {
+            throw new Error("LLM Studio returned an empty response.");
+          }
+
+          return content;
+        } catch (error) {
+          if (attempt < timeouts.length - 1 && isTimeoutError(error)) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            continue;
+          }
+          throw error;
+        }
       }
 
-      const data = (await response.json()) as ChatCompletionResponse;
-      if (data.error) {
-        const message = typeof data.error === "string" ? data.error : data.error.message ?? "Unknown error";
-        throw new Error(`LLM Studio error: ${message}`);
+      if (lastError) {
+        throw lastError;
       }
 
-      const content = extractContent(data);
-      if (!content) {
-        throw new Error("LLM Studio returned an empty response.");
-      }
-
-      return content;
+      throw new Error("LLM Studio failed unexpectedly.");
     } finally {
       this.activeRequests = Math.max(0, this.activeRequests - 1);
     }
@@ -120,11 +144,27 @@ function extractContent(data: ChatCompletionResponse): string | null {
   return null;
 }
 
-function timeoutSignal(timeoutMs: number): AbortSignal {
+function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return undefined;
+  }
   if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
     return AbortSignal.timeout(timeoutMs);
   }
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeoutMs);
   return controller.signal;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!error) {
+    return false;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return isTimeoutMessage(message) || message.toLowerCase().includes("abort");
+}
+
+function isTimeoutMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("timeout") || normalized.includes("timed out");
 }

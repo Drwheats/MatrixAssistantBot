@@ -1,4 +1,5 @@
 import { CommandContext } from "../types/commandContext";
+import { sendErrorReply } from "../utils/errorReactions";
 
 const DEFAULT_WINDOW = "24h";
 
@@ -214,7 +215,7 @@ export async function handleGrafanaCommand(ctx: CommandContext): Promise<void> {
     const message = error instanceof Error ? error.message : "Unknown error";
     const isBadRequest = typeof message === "string" && message.includes("400");
     const hint = isBadRequest ? " (Bad request: check label selector or query syntax.)" : "";
-    await sendText(ctx, `Grafana error: ${message}${hint}`);
+    await sendErrorReply(ctx, ctx.eventId, `Grafana error: ${message}${hint}`);
   }
 }
 

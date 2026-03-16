@@ -2,6 +2,7 @@ import { CommandContext } from "../types/commandContext";
 import { JellyseerrMovieDetails, JellyseerrSearchResult } from "../connectors/jellyseerr";
 import { startLlmReactions } from "../utils/llmReactions";
 import { buildTrelloSummary, fetchWeather, renderDueTodayLines } from "../services/trelloSummary";
+import { sendErrorReply } from "../utils/errorReactions";
 
 const FACTCHECK_SYSTEM_PROMPT = "You are a fact checker. Check this post.";
 const SEERR_REPLY_LIMIT = 500;
@@ -74,7 +75,7 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
     await sendReply(ctx, ctx.eventId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await sendReply(ctx, ctx.eventId, `LLM Studio error: ${message}`);
+    await sendErrorReply(ctx, ctx.eventId, `LLM Studio error: ${message}`);
   } finally {
     if (reactions) {
       await reactions.finish();
@@ -135,7 +136,7 @@ export async function handleBlimpfDownloadReplyMessage(
     await dropSeerrTarget(ctx, replyToEventId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await sendReply(ctx, event?.event_id ?? ctx.eventId, `Seerr error: ${message}`);
+    await sendErrorReply(ctx, event?.event_id ?? ctx.eventId, `Seerr error: ${message}`);
   }
 
   return true;
@@ -184,7 +185,7 @@ export async function handleFactcheckReplyMessage(
     await sendReply(ctx, reactionTargetId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await sendReply(ctx, reactionTargetId, `LLM Studio error: ${message}`);
+    await sendErrorReply(ctx, reactionTargetId, `LLM Studio error: ${message}`);
   } finally {
     if (reactions) {
       await reactions.finish();
@@ -245,7 +246,7 @@ async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await sendReply(ctx, ctx.eventId, `Seerr error: ${message}`);
+    await sendErrorReply(ctx, ctx.eventId, `Seerr error: ${message}`);
   }
 }
 

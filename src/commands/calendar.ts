@@ -1,4 +1,5 @@
 import { CommandContext } from "../types/commandContext";
+import { sendErrorReply } from "../utils/errorReactions";
 
 export async function handleCalendarTodayCommand(ctx: CommandContext): Promise<void> {
   if (!ctx.isAdminUser) {
@@ -26,9 +27,6 @@ export async function handleCalendarTodayCommand(ctx: CommandContext): Promise<v
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await ctx.client.sendMessage(ctx.roomId, {
-      msgtype: "m.text",
-      body: `Calendar error: ${message}`
-    });
+    await sendErrorReply(ctx, ctx.eventId, `Calendar error: ${message}`);
   }
 }

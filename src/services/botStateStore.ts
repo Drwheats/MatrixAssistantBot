@@ -29,6 +29,7 @@ export interface BotState {
   seerrRequestTargets: Record<string, SeerrRequestTarget>;
   seerrRequestOrder: string[];
   seerrAllowedUsers: string[];
+  errorReactionTargets: Record<string, string>;
 }
 
 export interface MonitorDefinition {
@@ -64,7 +65,8 @@ const DEFAULT_STATE: BotState = {
   trelloAlertTargets: {},
   seerrRequestTargets: {},
   seerrRequestOrder: [],
-  seerrAllowedUsers: []
+  seerrAllowedUsers: [],
+  errorReactionTargets: {}
 };
 
 export class BotStateStore {
@@ -112,7 +114,8 @@ export class BotStateStore {
           typeof parsed.weatherLocationTimezone === "string" ? parsed.weatherLocationTimezone : undefined,
         seerrRequestTargets: isRecordOfSeerrTarget(parsed.seerrRequestTargets) ? parsed.seerrRequestTargets : {},
         seerrRequestOrder: Array.isArray(parsed.seerrRequestOrder) ? parsed.seerrRequestOrder : [],
-        seerrAllowedUsers: Array.isArray(parsed.seerrAllowedUsers) ? parsed.seerrAllowedUsers : []
+        seerrAllowedUsers: Array.isArray(parsed.seerrAllowedUsers) ? parsed.seerrAllowedUsers : [],
+        errorReactionTargets: isRecordOfString(parsed.errorReactionTargets) ? parsed.errorReactionTargets : {}
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -138,6 +141,7 @@ export class BotStateStore {
       : undefined;
     const seerrRequestOrder = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder : undefined;
     const seerrAllowedUsers = Array.isArray(state.seerrAllowedUsers) ? state.seerrAllowedUsers : undefined;
+    const errorReactionTargets = isRecordOfString(state.errorReactionTargets) ? state.errorReactionTargets : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -165,7 +169,8 @@ export class BotStateStore {
       weatherLocationTimezone: state.weatherLocationTimezone ?? current.weatherLocationTimezone,
       seerrRequestTargets: seerrRequestTargets ?? current.seerrRequestTargets ?? {},
       seerrRequestOrder: seerrRequestOrder ?? current.seerrRequestOrder ?? [],
-      seerrAllowedUsers: seerrAllowedUsers ?? current.seerrAllowedUsers ?? []
+      seerrAllowedUsers: seerrAllowedUsers ?? current.seerrAllowedUsers ?? [],
+      errorReactionTargets: errorReactionTargets ?? current.errorReactionTargets ?? {}
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
