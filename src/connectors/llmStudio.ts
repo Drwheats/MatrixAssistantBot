@@ -25,7 +25,8 @@ export class LlmStudioConnector {
       const body: Record<string, unknown> = {
         model: env.LLM_STUDIO_MODEL,
         ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
-        input: prompt
+        input: prompt,
+        enable_thinking: false
       };
 
       if (typeof env.llmStudioTemperature === "number") {
@@ -63,7 +64,7 @@ export class LlmStudioConnector {
             throw new Error(`LLM Studio error: ${message}`);
           }
 
-          const content = extractContent(data);
+          const content = stripThinking(extractContent(data));
           if (!content) {
             throw new Error("LLM Studio returned an empty response.");
           }
@@ -142,6 +143,34 @@ function extractContent(data: ChatCompletionResponse): string | null {
   }
 
   return null;
+}
+
+function stripThinking(content: string | null): string | null {
+  if (!content) {
+    return content;
+  }
+
+  let cleaned = content;
+
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  const lines = cleaned.split(/\r?\n/);
+  const lowerLines = lines.map((line) => line.toLowerCase());
+  const thinkingIndex = lowerLines.findIndex((line) => line.startsWith("thinking process"));
+  if (thinkingIndex >= 0) {
+    const finalIndex = lowerLines.findIndex(
+      (line, idx) =>
+        idx > thinkingIndex &&
+        (line.startsWith("final") || line.startsWith("answer") || line.startsWith("response") || line.startsWith("output"))
+    );
+    if (finalIndex >= 0) {
+      cleaned = lines.slice(finalIndex + 1).join("\n").trim();
+    } else {
+      cleaned = lines.filter((_, idx) => idx !== thinkingIndex).join("\n").trim();
+    }
+  }
+
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
