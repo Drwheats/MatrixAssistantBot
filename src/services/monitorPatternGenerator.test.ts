@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildHeuristicMonitorPattern,
   buildMonitorSystemPrompt,
   buildOpenAiCompatibleBaseUrl,
   extractMonitorRegexCandidate,
@@ -46,4 +47,18 @@ test("buildOpenAiCompatibleBaseUrl normalizes supported LM Studio base URLs", ()
   assert.equal(buildOpenAiCompatibleBaseUrl("http://127.0.0.1:1234"), "http://127.0.0.1:1234/v1");
   assert.equal(buildOpenAiCompatibleBaseUrl("http://127.0.0.1:1234/api/v1"), "http://127.0.0.1:1234/v1");
   assert.equal(buildOpenAiCompatibleBaseUrl("http://127.0.0.1:1234/api/v1/chat"), "http://127.0.0.1:1234/v1");
+});
+
+test("buildHeuristicMonitorPattern generalizes login success logs", () => {
+  const sample = "(N) 2026-03-16T22:34:32 - WebAPI login success. IP: ::ffff:192.168.68.64";
+  const pattern = buildHeuristicMonitorPattern(sample);
+  assert.equal(pattern, String.raw`WebAPI\s+login\s+success\.\s+IP:\s+(?:::ffff:)?\d{1,3}(?:\.\d{1,3}){3}`);
+  assert.equal(validateMonitorPattern(pattern ?? "", "WebAPI login success. IP: ::ffff:192.168.68.64"), true);
+});
+
+test("buildHeuristicMonitorPattern generalizes torrent title logs", () => {
+  const sample = '(N) 2026-03-16T22:34:11 - Added new torrent. Torrent: "The Stuff (1985) [1080p] [YTS.AG]"';
+  const pattern = buildHeuristicMonitorPattern(sample);
+  assert.equal(pattern, String.raw`Added\s+new\s+torrent\.\s+Torrent:\s+".*?"`);
+  assert.equal(validateMonitorPattern(pattern ?? "", 'Added new torrent. Torrent: "Another Movie (2024) [1080p]"'), true);
 });

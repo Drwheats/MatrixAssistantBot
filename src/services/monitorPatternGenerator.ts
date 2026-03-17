@@ -41,8 +41,9 @@ export async function deriveMonitorPattern(
   sample: string,
   options: MonitorPatternGenerationOptions = {}
 ): Promise<string | null> {
+  const normalizedSample = normalizeMonitorSample(sample);
   if (!env.hasLlmStudioCredentials) {
-    return null;
+    return buildHeuristicMonitorPattern(normalizedSample);
   }
 
   const client = new ChatOpenAI({
@@ -58,15 +59,15 @@ export async function deriveMonitorPattern(
 
   const response = await client.invoke([
     new SystemMessage(buildMonitorSystemPrompt(options.customPrompt)),
-    new HumanMessage(buildMonitorUserPrompt(sample))
+    new HumanMessage(buildMonitorUserPrompt(normalizedSample))
   ]);
 
   const candidate = extractMonitorRegexCandidate(response.content);
-  if (!candidate) {
-    return null;
+  if (candidate && validateMonitorPattern(candidate, normalizedSample)) {
+    return candidate;
   }
 
-  return validateMonitorPattern(candidate, sample) ? candidate : null;
+  return buildHeuristicMonitorPattern(normalizedSample);
 }
 
 export function buildMonitorSystemPrompt(customPrompt?: string): string {
@@ -140,6 +141,21 @@ export function validateMonitorPattern(pattern: string, sample: string): boolean
   }
 }
 
+export function buildHeuristicMonitorPattern(sample: string): string | null {
+  const normalized = normalizeMonitorSample(sample);
+  if (!normalized) {
+    return null;
+  }
+
+  const tokens = tokenizeSample(normalized);
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const pattern = tokens.join("");
+  return validateMonitorPattern(pattern, normalized) ? pattern : null;
+}
+
 export function buildOpenAiCompatibleBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.replace(/\/+$/, "");
   if (normalized.endsWith("/v1/chat/completions")) {
@@ -190,4 +206,91 @@ function looksConversational(value: string): boolean {
   return /\b(let'?s|here(?:'s| is)|this regex|this pattern|explanation|because|should match|use this|similar logs|this log entry|appears to be|final plan|wait,|actually,|okay, ready)\b/i.test(
     value
   );
+}
+
+function normalizeMonitorSample(sample: string): string {
+  let value = sample.trim();
+  value = value.replace(/^\([A-Za-z]\)\s*/, "");
+  value = value.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\s*-\s*/, "");
+  value = value.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\s*/, "");
+  return value.trim();
+}
+
+function tokenizeSample(sample: string): string[] {
+  const tokens: string[] = [];
+  let index = 0;
+
+  while (index < sample.length) {
+    const remainder = sample.slice(index);
+
+    const ipv6MappedIpv4 = remainder.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})/i);
+    if (ipv6MappedIpv4) {
+      tokens.push(String.raw`(?:::ffff:)?\d{1,3}(?:\.\d{1,3}){3}`);
+      index += ipv6MappedIpv4[0].length;
+      continue;
+    }
+
+    const ipv4 = remainder.match(/^\d{1,3}(?:\.\d{1,3}){3}/);
+    if (ipv4) {
+      tokens.push(String.raw`\d{1,3}(?:\.\d{1,3}){3}`);
+      index += ipv4[0].length;
+      continue;
+    }
+
+    const uuid = remainder.match(/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5a-f0-9]{4}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/i);
+    if (uuid) {
+      tokens.push(String.raw`[a-f0-9-]+`);
+      index += uuid[0].length;
+      continue;
+    }
+
+    const quoted = remainder.match(/^"[^"]+"/);
+    if (quoted) {
+      tokens.push(String.raw`".*?"`);
+      index += quoted[0].length;
+      continue;
+    }
+
+    const port = remainder.match(/^\d+/);
+    if (port) {
+      tokens.push(String.raw`\d+`);
+      index += port[0].length;
+      continue;
+    }
+
+    const whitespace = remainder.match(/^\s+/);
+    if (whitespace) {
+      tokens.push(String.raw`\s+`);
+      index += whitespace[0].length;
+      continue;
+    }
+
+    const text = remainder.match(/^[^\s\d":]+/);
+    if (text) {
+      tokens.push(escapeRegex(text[0]));
+      index += text[0].length;
+      continue;
+    }
+
+    tokens.push(escapeRegex(sample[index]));
+    index += 1;
+  }
+
+  return compactWildcards(tokens);
+}
+
+function compactWildcards(tokens: string[]): string[] {
+  const compacted: string[] = [];
+  for (const token of tokens) {
+    const previous = compacted[compacted.length - 1];
+    if (token === String.raw`\s+` && previous === String.raw`\s+`) {
+      continue;
+    }
+    compacted.push(token);
+  }
+  return compacted;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
