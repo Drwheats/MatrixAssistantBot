@@ -3,6 +3,7 @@ import { JellyseerrMovieDetails, JellyseerrSearchResult } from "../connectors/je
 import { startLlmReactions } from "../utils/llmReactions";
 import { buildTrelloSummary, fetchWeather, renderDueTodayLines } from "../services/trelloSummary";
 import { sendErrorReply } from "../utils/errorReactions";
+import { saveMonitorFromSample } from "../services/monitorRegistry";
 
 const FACTCHECK_SYSTEM_PROMPT = "You are a fact checker. Check this post.";
 const SEERR_REPLY_LIMIT = 500;
@@ -68,6 +69,20 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
         `${location.name} weather today: ${summary.weather}`
       ];
       await sendReply(ctx, ctx.eventId, lines.join("\n"));
+      return;
+    }
+
+    const monitorSample = extractMonitorPrompt(prompt);
+    if (monitorSample) {
+      const result = await saveMonitorFromSample(ctx, monitorSample, {
+        rawCommand: `${promptCommand} monitor "${monitorSample}"`,
+        preferredName: undefined
+      });
+      if (!result) {
+        await sendReply(ctx, ctx.eventId, "Unable to derive a valid regex monitor pattern from the sample log.");
+        return;
+      }
+      await sendReply(ctx, ctx.eventId, `Monitor "${result.name}" saved.\nSelector: {}\nPattern: ${result.pattern}`);
       return;
     }
 
@@ -314,6 +329,15 @@ function extractPrompt(commandBody: string, command: string): string | null {
   }
   const prompt = match[1].trim();
   return prompt.length > 0 ? prompt : null;
+}
+
+function extractMonitorPrompt(prompt: string): string | null {
+  const match = prompt.match(/^monitor\s+"([\s\S]+)"$/i);
+  if (!match) {
+    return null;
+  }
+  const sample = match[1].trim();
+  return sample.length > 0 ? sample : null;
 }
 
 function getReplyToEventId(event: Record<string, any>): string | null {

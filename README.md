@@ -78,7 +78,7 @@ npm start
 - `!admin monitor show [N]`
 - `!admin unmonitor N`
 - `!admin unmonitor name`
-- `!admin monitor "container" "sample log"`
+- `!admin monitor "sample log"`
 - `!admin monitorlabel name key=value`
 - `!admin setqbitlabel "{label=\"value\"}"`
 - `!admin addqbitlabel key=value`

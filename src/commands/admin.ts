@@ -10,9 +10,8 @@ import {
   readMemoryUsage,
   readThermalStatus
 } from "../utils/sysinfo";
-import { BotState } from "../services/botStateStore";
 import { geocodeLocation, getWeatherLocation } from "../services/weatherLocation";
-import { deriveMonitorPattern as deriveMonitorPatternWithLangChain } from "../services/monitorPatternGenerator";
+import { saveMonitorFromSample } from "../services/monitorRegistry";
 
 const ADMIN_PREFIX = "!admin";
 
@@ -605,7 +604,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     '!admin setqbitlabel "{label=\\"value\\"}" - set qbittorrent label selector',
     "!admin addqbitlabel key=value - add/overwrite a qbittorrent label selector pair",
     "!admin clearqbitlabel - reset qbittorrent label selector",
-    '!admin monitor "container" "sample log" - add a Grafana log monitor',
+    '!admin monitor "sample log" - add a Grafana log monitor for any matching log',
     "!admin monitorlabel name key=value - add/overwrite label selector for a monitor",
     "!admin showmonitoring [N] - list recent monitor commands",
     "!admin showmonitor [N] - same as showmonitoring",
@@ -924,17 +923,6 @@ function parseLabelSelector(selector: string): Map<string, string> | null {
   return labels;
 }
 
-function recordMonitorHistory(state: BotState, id: string, name: string, rawArgs: string): void {
-  const command = `!admin monitor ${rawArgs}`;
-  const entry = {
-    id,
-    name,
-    command,
-    createdAt: new Date().toISOString()
-  };
-  state.monitorHistory = [...state.monitorHistory, entry].slice(-50);
-}
-
 function buildMonitorListKey(ctx: CommandContext): string {
   return `${ctx.roomId}:${ctx.sender}`;
 }
@@ -954,25 +942,26 @@ function parseShowLimit(rawArgs: string): number | null {
 }
 
 async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<void> {
-  const parsed = parseTwoQuotedArgs(rawArgs);
+  const parsed = parseMonitorArgs(rawArgs);
   if (!parsed) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
-      body: 'Usage: !admin monitor "container" "sample log"'
+      body: 'Usage: !admin monitor "sample log"'
     });
     return;
   }
 
-  const { first: container, second: sample } = parsed;
-  const safeContainer = container.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const selector = `{container="${safeContainer}"}`;
+  const { name, sample } = parsed;
   const reactionTargetId = ctx.eventId ?? null;
   const reactions = reactionTargetId ? startLlmReactions(ctx, reactionTargetId) : null;
-  const pattern = await derivePattern(ctx, sample);
+  const result = await derivePattern(ctx, sample, {
+    rawCommand: `!admin monitor ${rawArgs}`,
+    preferredName: name
+  });
   if (reactions) {
     await reactions.finish();
   }
-  if (!pattern) {
+  if (!result) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
       body: "Unable to derive a valid regex monitor pattern from the sample log."
@@ -980,35 +969,9 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
     return;
   }
 
-  const monitorName = container;
-  const state = await ctx.stateStore.load();
-  const userConfig = await ctx.userConfigStore.load();
-  const existing = userConfig.monitors.find((m) => m.name.toLowerCase() === monitorName.toLowerCase());
-  if (existing) {
-    existing.selector = selector;
-    existing.pattern = pattern;
-    state.monitorSeenKeys[existing.id] = [];
-    recordMonitorHistory(state, existing.id, monitorName, rawArgs);
-    await ctx.userConfigStore.save({ monitors: userConfig.monitors });
-    await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorHistory: state.monitorHistory });
-  } else {
-    const id = randomId();
-    userConfig.monitors.push({
-      id,
-      name: monitorName,
-      selector,
-      pattern,
-      createdAt: new Date().toISOString()
-    });
-    state.monitorSeenKeys[id] = [];
-    recordMonitorHistory(state, id, monitorName, rawArgs);
-    await ctx.userConfigStore.save({ monitors: userConfig.monitors });
-    await ctx.stateStore.save({ monitorSeenKeys: state.monitorSeenKeys, monitorHistory: state.monitorHistory });
-  }
-
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
-    body: `Monitor "${monitorName}" saved.\nPattern: ${pattern}`
+    body: `Monitor "${result.name}" saved.\nSelector: {}\nPattern: ${result.pattern}`
   });
 }
 
@@ -1186,32 +1149,33 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
   });
 }
 
-async function derivePattern(ctx: CommandContext, sample: string): Promise<string | null> {
-  if (ctx.llmStudio && ctx.isAllowedUser) {
-    try {
-      const pattern = await deriveMonitorPatternWithLangChain(sample, {
-        customPrompt: ctx.botConfig.monitorPrompt,
-        model: ctx.botConfig.llmModel
-      });
-      if (pattern) {
-        return pattern;
-      }
-      console.warn("LLM monitor pattern rejected.", { sample });
-    } catch {
-      // fall through to failure
+async function derivePattern(
+  ctx: CommandContext,
+  sample: string,
+  options: { rawCommand: string; preferredName?: string }
+): Promise<{ name: string; pattern: string } | null> {
+  try {
+    const result = await saveMonitorFromSample(ctx, sample, options);
+    if (result) {
+      return result;
     }
+    console.warn("LLM monitor pattern rejected.", { sample });
+  } catch (error) {
+    console.warn("LLM monitor pattern generation failed.", error);
   }
   return null;
 }
 
-function parseTwoQuotedArgs(args: string): { first: string; second: string } | null {
-  const match = args.match(/^"([\s\S]+)"\s+"([\s\S]+)"$/);
-  if (!match) {
-    return null;
+function parseMonitorArgs(args: string): { name?: string; sample: string } | null {
+  const single = args.match(/^"([\s\S]+)"$/);
+  if (single) {
+    return { sample: single[1].trim() };
   }
-  return { first: match[1].trim(), second: match[2].trim() };
-}
 
-function randomId(): string {
-  return Math.random().toString(36).slice(2, 10);
+  const double = args.match(/^"([\s\S]+)"\s+"([\s\S]+)"$/);
+  if (double) {
+    return { name: double[1].trim(), sample: double[2].trim() };
+  }
+
+  return null;
 }

@@ -67,7 +67,7 @@ Admin command examples:
 - `!admin deny @friend:yourdomain.com`
 - `!admin open on`
 - `!admin open off`
-- `!admin monitor "mushroom" "2026-03-11T15:08:47... Accepted password for mushroom ..."`
+- `!admin monitor "2026-03-11T15:08:47... Accepted password for mushroom ..."`
 - `!admin showmonitoring 10`
 - `!admin unmonitor 3`
 - `!admin monitorlabel mushroom host=mushroom`

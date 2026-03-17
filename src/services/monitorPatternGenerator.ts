@@ -8,7 +8,12 @@ const BASE_MONITOR_SYSTEM_PROMPT = [
   "You convert exactly one log line into exactly one regex fragment for Loki |~ queries.",
   "Your ONLY job is to return a regex that matches similar logs.",
   "Return ONLY the regex fragment.",
+  "If you cannot comply exactly, return INVALID_REGEX.",
   "Do not return prose, explanations, JSON, markdown, code fences, labels, prefixes, suffixes, or multiple options.",
+  "Do not summarize the log.",
+  "Do not describe the log.",
+  "Do not explain your reasoning.",
+  "Do not think step by step in the output.",
   "Do not wrap the regex in slashes.",
   "Prefer a concise regex that keeps the stable wording and structure of the log.",
   "Generalize dynamic values like timestamps, dates, UUIDs, request ids, counters, hashes, IPs, ports, durations, process ids, and numeric ids.",
@@ -22,7 +27,9 @@ const BASE_MONITOR_SYSTEM_PROMPT = [
   "Log: level=error req_id=4d3c2b1a timeout after 1532ms while syncing user 9182",
   String.raw`Regex: level=error req_id=[a-f0-9-]+ timeout after \d+ms while syncing user \d+`,
   "Log: [42911] File error alert: disk /mnt/storage is read-only",
-  String.raw`Regex: File error alert: disk /mnt/storage is read-only`
+  String.raw`Regex: File error alert: disk /mnt/storage is read-only`,
+  'Log: (N) 2026-03-16T22:34:11 - Added new torrent. Torrent: "The Stuff (1985) [1080p] [YTS.AG]"',
+  String.raw`Regex: Added new torrent\. Torrent: ".*?"`
 ].join("\n");
 
 export interface MonitorPatternGenerationOptions {
@@ -41,7 +48,7 @@ export async function deriveMonitorPattern(
   const client = new ChatOpenAI({
     apiKey: env.LLM_STUDIO_API_KEY ?? "lm-studio",
     model: options.model ?? env.LLM_STUDIO_MODEL,
-    temperature: env.llmStudioTemperature,
+    temperature: 0,
     timeout: env.llmStudioTimeoutMs,
     maxTokens: Math.min(env.llmStudioMaxTokens, MAX_PATTERN_LENGTH),
     configuration: {
@@ -80,6 +87,9 @@ export function extractMonitorRegexCandidate(content: unknown): string | null {
   if (!text) {
     return null;
   }
+  if (text === "INVALID_REGEX") {
+    return null;
+  }
   if (text.length > MAX_PATTERN_LENGTH) {
     return null;
   }
@@ -101,12 +111,18 @@ export function extractMonitorRegexCandidate(content: unknown): string | null {
   if (looksConversational(text)) {
     return null;
   }
+  if (!/[\\^$.\[\]()|?*+\]]|(?:\w+\s+\w+)/.test(text)) {
+    return null;
+  }
   return text;
 }
 
 export function validateMonitorPattern(pattern: string, sample: string): boolean {
   const trimmed = pattern.trim();
   if (!trimmed || trimmed.length > MAX_PATTERN_LENGTH) {
+    return false;
+  }
+  if (trimmed === "INVALID_REGEX") {
     return false;
   }
   if (/[\r\n]/.test(trimmed)) {
@@ -171,5 +187,7 @@ function flattenMessageContent(content: unknown): string {
 }
 
 function looksConversational(value: string): boolean {
-  return /\b(here(?:'s| is)|this regex|this pattern|explanation|because|should match|use this|similar logs)\b/i.test(value);
+  return /\b(let'?s|here(?:'s| is)|this regex|this pattern|explanation|because|should match|use this|similar logs|this log entry|appears to be|final plan|wait,|actually,|okay, ready)\b/i.test(
+    value
+  );
 }
