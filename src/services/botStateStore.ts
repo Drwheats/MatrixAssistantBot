@@ -49,7 +49,7 @@ export interface MonitorHistoryEntry {
 
 export interface SeerrRequestTarget {
   createdAt: string;
-  items: Array<{ id: number; title: string }>;
+  items: Array<{ id: number; title: string; mediaType: "movie" | "tv" }>;
 }
 
 const DEFAULT_STATE: BotState = {
@@ -254,6 +254,9 @@ function isSeerrTarget(value: unknown): value is SeerrRequestTarget {
       return false;
     }
     if (typeof (item as { title?: string }).title !== "string") {
+      return false;
+    }
+    if (!["movie", "tv"].includes((item as { mediaType?: string }).mediaType ?? "")) {
       return false;
     }
   }

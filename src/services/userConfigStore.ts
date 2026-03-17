@@ -5,6 +5,7 @@ export interface UserConfig {
   globalPrompt?: string;
   globalFactcheckPrompt?: string;
   monitorPrompt?: string;
+  llmModel?: string;
   monitors: Array<{
     id: string;
     name: string;
@@ -34,6 +35,7 @@ export class UserConfigStore {
         globalFactcheckPrompt:
           typeof parsed.globalFactcheckPrompt === "string" ? parsed.globalFactcheckPrompt : undefined,
         monitorPrompt: typeof parsed.monitorPrompt === "string" ? parsed.monitorPrompt : undefined,
+        llmModel: typeof parsed.llmModel === "string" ? parsed.llmModel : undefined,
         monitors: Array.isArray(parsed.monitors) ? (parsed.monitors as UserConfig["monitors"]) : []
       };
     } catch {
@@ -47,6 +49,7 @@ export class UserConfigStore {
       globalPrompt: update.globalPrompt ?? current.globalPrompt,
       globalFactcheckPrompt: update.globalFactcheckPrompt ?? current.globalFactcheckPrompt,
       monitorPrompt: update.monitorPrompt ?? current.monitorPrompt,
+      llmModel: update.llmModel ?? current.llmModel,
       monitors: Array.isArray(update.monitors) ? update.monitors : current.monitors ?? []
     };
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");

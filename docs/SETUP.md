@@ -201,6 +201,7 @@ Admin prompt overrides:
 - `!admin setglobalfactcheckprompt "PROMPT"`
 - `!admin setmonitorprompt "PROMPT"`
 - `!admin promptinfo` (show the prompt command and system prompts)
+- `!admin changemodel MODEL_NAME` (change the LLM model used for API requests)
 
 ## Step 9: Configure Seerr (optional)
 

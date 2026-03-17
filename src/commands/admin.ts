@@ -71,6 +71,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (args.toLowerCase().startsWith("changemodel ")) {
+    await handleChangeModel(ctx, args.slice("changemodel ".length).trim());
+    return;
+  }
+
   if (args.toLowerCase() === "promptinfo") {
     await handlePromptInfo(ctx);
     return;
@@ -439,6 +444,7 @@ async function handlePromptInfo(ctx: CommandContext): Promise<void> {
   const lines = [
     "Prompt info:",
     `LLM command: ${promptCommand} YOUR_QUESTION`,
+    `LLM model: ${ctx.botConfig.llmModel ?? "(unset)"}`,
     `System prompt: ${formatPrompt(ctx.botConfig.globalPrompt)}`,
     `Factcheck system prompt: ${formatPrompt(ctx.botConfig.globalFactcheckPrompt ?? "You are a fact checker.")}`
   ];
@@ -446,6 +452,23 @@ async function handlePromptInfo(ctx: CommandContext): Promise<void> {
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
     body: lines.join("\n")
+  });
+}
+
+async function handleChangeModel(ctx: CommandContext, rawModel: string): Promise<void> {
+  const model = rawModel.trim();
+  if (!model) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "Usage: !admin changemodel MODEL_NAME"
+    });
+    return;
+  }
+
+  await ctx.userConfigStore.save({ llmModel: model });
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: `LLM model updated to ${model}.`
   });
 }
 
@@ -564,6 +587,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin users - list users and permissions",
     "!admin open on|off|status - toggle open mode",
     "!admin listprompts - list all prompts",
+    "!admin changemodel MODEL_NAME - set LLM model for API requests",
     "!admin promptinfo - show LLM command and system prompts",
     "!admin sysinfo - send system info to alerts channel",
     "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",

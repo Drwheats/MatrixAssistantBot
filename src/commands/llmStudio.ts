@@ -71,7 +71,7 @@ export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
       return;
     }
 
-    const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt);
+    const reply = await ctx.llmStudio.chat(prompt, ctx.botConfig.globalPrompt, ctx.botConfig.llmModel);
     await sendReply(ctx, ctx.eventId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -131,7 +131,7 @@ export async function handleBlimpfDownloadReplyMessage(
   }
 
   try {
-    await ctx.jellyseerr.requestMovie(selection.id);
+    await ctx.jellyseerr.requestMedia(selection.mediaType, selection.id);
     await sendReply(ctx, event?.event_id ?? ctx.eventId, `Requested: ${selection.title}`);
     await dropSeerrTarget(ctx, replyToEventId);
   } catch (error) {
@@ -181,7 +181,7 @@ export async function handleFactcheckReplyMessage(
   const reactions = reactionTargetId ? startLlmReactions(ctx, reactionTargetId) : null;
   try {
     const systemPrompt = ctx.botConfig.globalFactcheckPrompt ?? FACTCHECK_SYSTEM_PROMPT;
-    const reply = await ctx.llmStudio.chat(repliedBody, systemPrompt);
+    const reply = await ctx.llmStudio.chat(repliedBody, systemPrompt, ctx.botConfig.llmModel);
     await sendReply(ctx, reactionTargetId, reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -198,36 +198,37 @@ export async function handleFactcheckReplyMessage(
 async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise<void> {
   try {
     const results = await ctx.jellyseerr.search(query);
-    const movies = results
-      .filter(isMovieResult)
+    const items = results
+      .filter(isMovieOrTvResult)
       .filter((movie) => Number.isInteger(movie.id))
       .slice(0, 5);
 
-    if (movies.length === 0) {
+    if (items.length === 0) {
       await sendReply(ctx, ctx.eventId, `No movie results found for "${query}".`);
       return;
     }
 
     const details = await Promise.all(
-      movies.map(async (movie) => ({
-        movie,
-        details: movie.id ? await ctx.jellyseerr.getMovieDetails(movie.id) : null
+      items.map(async (item) => ({
+        item,
+        details: item.id && item.mediaType === "movie" ? await ctx.jellyseerr.getMovieDetails(item.id) : null
       }))
     );
 
     const lines = [
-      `Top ${movies.length} Seerr results for "${query}":`,
-      "Reply in this thread with a number (1-5) to request the movie."
+      `Top ${items.length} Seerr results for "${query}":`,
+      "Reply in this thread with a number (1-5) to request the title."
     ];
 
-    details.forEach(({ movie, details }, index) => {
-      const title = movie.title ?? details?.title ?? "Untitled";
-      const releaseDate = details?.releaseDate ?? movie.releaseDate ?? "Unknown";
+    details.forEach(({ item, details }, index) => {
+      const title = item.title ?? details?.title ?? "Untitled";
+      const releaseDate = details?.releaseDate ?? item.releaseDate ?? "Unknown";
       const director = extractDirector(details);
-      const language = formatLanguage(details, movie) ?? "Unknown";
-      const overview = shortenText(details?.overview ?? movie.overview ?? "No description available.");
+      const language = formatLanguage(details, item) ?? "Unknown";
+      const overview = shortenText(details?.overview ?? item.overview ?? "No description available.");
+      const label = `${typeEmoji(item.mediaType)} ${title}`;
       lines.push(
-        `${index + 1}. ${title}`,
+        `${index + 1}. ${label}`,
         `Director: ${director} | Released: ${releaseDate} | Language: ${language}`,
         `Description: ${overview}`
       );
@@ -238,9 +239,10 @@ async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise
       await rememberSeerrTarget(
         ctx,
         eventId,
-        details.map(({ movie, details }) => ({
-          id: movie.id ?? 0,
-          title: movie.title ?? details?.title ?? "Untitled"
+        details.map(({ item, details }) => ({
+          id: item.id ?? 0,
+          title: item.title ?? details?.title ?? "Untitled",
+          mediaType: normalizeMediaType(item.mediaType)
         }))
       );
     }
@@ -250,13 +252,13 @@ async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise
   }
 }
 
-function isMovieResult(result: JellyseerrSearchResult): boolean {
+function isMovieOrTvResult(result: JellyseerrSearchResult): boolean {
   if (!result) {
     return false;
   }
   const mediaType = result.mediaType?.toLowerCase();
   if (mediaType) {
-    return mediaType === "movie";
+    return mediaType === "movie" || mediaType === "tv";
   }
   return !!result.title;
 }
@@ -287,6 +289,14 @@ function shortenText(value: string, maxLength = 220): string {
     return trimmed;
   }
   return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function normalizeMediaType(value?: string): "movie" | "tv" {
+  return value?.toLowerCase() === "tv" ? "tv" : "movie";
+}
+
+function typeEmoji(value?: string): string {
+  return value?.toLowerCase() === "tv" ? "📺" : "🎥";
 }
 
 function canUseSeerr(ctx: CommandContext): boolean {

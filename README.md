@@ -64,6 +64,7 @@ npm start
 - `!admin users`
 - `!admin open on|off|status`
 - `!admin listprompts`
+- `!admin changemodel MODEL_NAME`
 - `!admin promptinfo`
 - `!admin sysinfo`
 - `!admin location NAME`

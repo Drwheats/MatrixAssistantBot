@@ -14,7 +14,7 @@ export class LlmStudioConnector {
     return this.activeRequests > 0;
   }
 
-  async chat(prompt: string, systemPrompt?: string): Promise<string> {
+  async chat(prompt: string, systemPrompt?: string, modelOverride?: string): Promise<string> {
     this.activeRequests += 1;
     if (!env.hasLlmStudioCredentials) {
       this.activeRequests -= 1;
@@ -23,7 +23,7 @@ export class LlmStudioConnector {
 
     try {
       const body: Record<string, unknown> = {
-        model: env.LLM_STUDIO_MODEL,
+        model: modelOverride ?? env.LLM_STUDIO_MODEL,
         ...(systemPrompt ? { system_prompt: systemPrompt } : {}),
         input: prompt,
         stream: false
@@ -261,6 +261,19 @@ function stripThinking(content: string | null): string | null {
   }
 
   cleaned = cleaned.replace(/let'?s write the response\.cw/gi, "").trim();
+  if (/let'?s write it\.cw/i.test(cleaned)) {
+    cleaned = cleaned.split(/let'?s write it\.cw/i).pop() ?? "";
+  }
+  cleaned = cleaned.trim();
+  if (/here'?s a thinking process/i.test(cleaned)) {
+    if (/let'?s write it\.cw/i.test(cleaned)) {
+      cleaned = cleaned.split(/let'?s write it\.cw/i).pop() ?? "";
+    } else {
+      const chunks = cleaned.split(/\r?\n\r?\n/);
+      const last = chunks[chunks.length - 1] ?? "";
+      cleaned = last.trim();
+    }
+  }
   cleaned = cleaned.replace(/\bresponse\.cw\b\s*$/gim, "").trim();
   cleaned = cleaned
     .split(/\r?\n/)

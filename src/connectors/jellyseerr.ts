@@ -50,6 +50,10 @@ export class JellyseerrConnector {
   }
 
   async requestMovie(mediaId: number): Promise<void> {
+    await this.requestMedia("movie", mediaId);
+  }
+
+  async requestMedia(mediaType: "movie" | "tv", mediaId: number): Promise<void> {
     if (!env.hasJellyseerrCredentials) {
       throw new Error("Seerr is not configured.");
     }
@@ -58,7 +62,7 @@ export class JellyseerrConnector {
     await this.request(url.toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mediaType: "movie", mediaId })
+      body: JSON.stringify({ mediaType, mediaId })
     });
   }
 

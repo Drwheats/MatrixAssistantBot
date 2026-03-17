@@ -21,6 +21,8 @@ import { SshLoginAlertsService } from "./services/sshLoginAlerts";
 
 LogService.setLevel(LogLevel.ERROR);
 
+const startupTimestamp = Date.now();
+
 const storage = new SimpleFsStorageProvider("bot-storage.json");
 const client = new MatrixClient(env.MATRIX_HOMESERVER_URL, env.MATRIX_ACCESS_TOKEN, storage);
 AutojoinRoomsMixin.setupOnClient(client);
@@ -58,6 +60,11 @@ const sshLoginAlertsService = new SshLoginAlertsService(grafanaAlertsChannelServ
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
+    return;
+  }
+
+  const eventTimestamp = typeof event.origin_server_ts === "number" ? event.origin_server_ts : null;
+  if (eventTimestamp !== null && eventTimestamp < startupTimestamp - 5_000) {
     return;
   }
 
@@ -172,6 +179,11 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
 
 client.on("room.event", async (roomId: string, event: Record<string, any>) => {
   if (!event || event.type !== "m.reaction") {
+    return;
+  }
+
+  const eventTimestamp = typeof event.origin_server_ts === "number" ? event.origin_server_ts : null;
+  if (eventTimestamp !== null && eventTimestamp < startupTimestamp - 5_000) {
     return;
   }
 
