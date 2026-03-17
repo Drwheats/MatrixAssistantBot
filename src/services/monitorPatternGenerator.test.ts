@@ -49,16 +49,16 @@ test("buildOpenAiCompatibleBaseUrl normalizes supported LM Studio base URLs", ()
   assert.equal(buildOpenAiCompatibleBaseUrl("http://127.0.0.1:1234/api/v1/chat"), "http://127.0.0.1:1234/v1");
 });
 
-test("buildHeuristicMonitorPattern generalizes login success logs", () => {
-  const sample = "(N) 2026-03-16T22:34:32 - WebAPI login success. IP: ::ffff:192.168.68.64";
+test("buildHeuristicMonitorPattern prefers a short stable phrase for login logs", () => {
+  const sample = "(W) 2026-03-17T21:46:15 - WebAPI login failure. Reason: invalid credentials, attempt count: 1, IP: ::ffff:192.168.68.64, username: admin";
   const pattern = buildHeuristicMonitorPattern(sample);
-  assert.equal(pattern, String.raw`WebAPI\s+login\s+success\.\s+IP:\s+(?:::ffff:)?\d{1,3}(?:\.\d{1,3}){3}`);
-  assert.equal(validateMonitorPattern(pattern ?? "", "WebAPI login success. IP: ::ffff:192.168.68.64"), true);
+  assert.equal(pattern, "WebAPI login failure");
+  assert.equal(validateMonitorPattern(pattern ?? "", "WebAPI login failure. Reason: invalid credentials"), true);
 });
 
-test("buildHeuristicMonitorPattern generalizes torrent title logs", () => {
+test("buildHeuristicMonitorPattern prefers a short stable phrase for torrent logs", () => {
   const sample = '(N) 2026-03-16T22:34:11 - Added new torrent. Torrent: "The Stuff (1985) [1080p] [YTS.AG]"';
   const pattern = buildHeuristicMonitorPattern(sample);
-  assert.equal(pattern, String.raw`Added\s+new\s+torrent\.\s+Torrent:\s+".*?"`);
+  assert.equal(pattern, "Added new torrent");
   assert.equal(validateMonitorPattern(pattern ?? "", 'Added new torrent. Torrent: "Another Movie (2024) [1080p]"'), true);
 });

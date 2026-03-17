@@ -3,6 +3,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { env } from "../config/env";
 
 const MAX_PATTERN_LENGTH = 180;
+const MIN_PATTERN_LENGTH = 8;
 
 const BASE_MONITOR_SYSTEM_PROMPT = [
   "You convert exactly one log line into exactly one regex fragment for Loki |~ queries.",
@@ -15,7 +16,8 @@ const BASE_MONITOR_SYSTEM_PROMPT = [
   "Do not explain your reasoning.",
   "Do not think step by step in the output.",
   "Do not wrap the regex in slashes.",
-  "Prefer a concise regex that keeps the stable wording and structure of the log.",
+  "Prefer a short literal phrase that captures the stable part of the log.",
+  "If a stable event label exists (like 'WebAPI login failure'), return only that phrase.",
   "Generalize dynamic values like timestamps, dates, UUIDs, request ids, counters, hashes, IPs, ports, durations, process ids, and numeric ids.",
   "Do not copy dynamic values literally unless they are part of the stable message shape.",
   "Avoid catastrophic or overly broad patterns. Prefer explicit text and small wildcards over greedy catch-all fragments.",
@@ -25,11 +27,11 @@ const BASE_MONITOR_SYSTEM_PROMPT = [
   'Log: 2026-03-11T15:08:47Z Accepted password for mushroom from 192.168.0.1 port 2222 ssh2',
   String.raw`Regex: Accepted password for mushroom from \b\d{1,3}(?:\.\d{1,3}){3}\b port \d+ ssh2`,
   "Log: level=error req_id=4d3c2b1a timeout after 1532ms while syncing user 9182",
-  String.raw`Regex: level=error req_id=[a-f0-9-]+ timeout after \d+ms while syncing user \d+`,
+  String.raw`Regex: timeout after`,
   "Log: [42911] File error alert: disk /mnt/storage is read-only",
   String.raw`Regex: File error alert: disk /mnt/storage is read-only`,
   'Log: (N) 2026-03-16T22:34:11 - Added new torrent. Torrent: "The Stuff (1985) [1080p] [YTS.AG]"',
-  String.raw`Regex: Added new torrent\. Torrent: ".*?"`
+  String.raw`Regex: Added new torrent`
 ].join("\n");
 
 export interface MonitorPatternGenerationOptions {
@@ -94,6 +96,9 @@ export function extractMonitorRegexCandidate(content: unknown): string | null {
   if (text.length > MAX_PATTERN_LENGTH) {
     return null;
   }
+  if (text.length < MIN_PATTERN_LENGTH) {
+    return null;
+  }
   if (/[\r\n]/.test(text)) {
     return null;
   }
@@ -123,6 +128,9 @@ export function validateMonitorPattern(pattern: string, sample: string): boolean
   if (!trimmed || trimmed.length > MAX_PATTERN_LENGTH) {
     return false;
   }
+  if (trimmed.length < MIN_PATTERN_LENGTH) {
+    return false;
+  }
   if (trimmed === "INVALID_REGEX") {
     return false;
   }
@@ -145,6 +153,11 @@ export function buildHeuristicMonitorPattern(sample: string): string | null {
   const normalized = normalizeMonitorSample(sample);
   if (!normalized) {
     return null;
+  }
+
+  const phrase = extractStablePhrase(normalized);
+  if (phrase) {
+    return validateMonitorPattern(phrase, normalized) ? phrase : null;
   }
 
   const tokens = tokenizeSample(normalized);
@@ -214,6 +227,30 @@ function normalizeMonitorSample(sample: string): string {
   value = value.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\s*-\s*/, "");
   value = value.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\s*/, "");
   return value.trim();
+}
+
+function extractStablePhrase(sample: string): string | null {
+  const normalized = sample.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const prefixMatch = normalized.match(/^[^:]+(?:success|failure|error|warning|critical|timeout|denied|accepted)[^:]*?/i);
+  if (prefixMatch) {
+    return prefixMatch[0].trim();
+  }
+
+  const beforeDelimiter = normalized.split(/\.\s+|\s+-\s+|,\s+|:\s+/)[0]?.trim();
+  if (beforeDelimiter && beforeDelimiter.length >= MIN_PATTERN_LENGTH) {
+    return beforeDelimiter;
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return words.slice(0, 4).join(" ");
+  }
+
+  return null;
 }
 
 function tokenizeSample(sample: string): string[] {
