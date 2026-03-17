@@ -11,7 +11,7 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     `${promptCommand} weather | ${promptCommand} rundown | !admin sysinfo - weather, updates, device status`,
     "",
     "Full command list:",
-    "`https://github.com/Drwheats/MatrixAssistantBot/blob/main/README.md`"
+    "`https://github.com/Drwheats/MatrixAssistantBot/blob/main/README.md"
   ];
 
   await ctx.client.sendMessage(ctx.roomId, {

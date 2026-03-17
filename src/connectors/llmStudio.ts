@@ -260,6 +260,14 @@ function stripThinking(content: string | null): string | null {
     }
   }
 
+  cleaned = cleaned.replace(/let'?s write the response\.cw/gi, "").trim();
+  cleaned = cleaned.replace(/\bresponse\.cw\b\s*$/gim, "").trim();
+  cleaned = cleaned
+    .split(/\r?\n/)
+    .filter((line) => !/response\.cw/i.test(line))
+    .join("\n")
+    .trim();
+
   return cleaned.length > 0 ? cleaned : null;
 }
 
