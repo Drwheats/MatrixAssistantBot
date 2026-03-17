@@ -369,7 +369,7 @@ async function sendReplyWithEventId(
 async function rememberSeerrTarget(
   ctx: CommandContext,
   eventId: string,
-  items: Array<{ id: number; title: string }>
+  items: Array<{ id: number; title: string; mediaType: "movie" | "tv" }>
 ): Promise<void> {
   const filtered = items.filter((item) => Number.isInteger(item.id) && item.id > 0);
   if (filtered.length === 0) {
@@ -387,7 +387,7 @@ async function rememberSeerrTarget(
 
   targets[eventId] = {
     createdAt: new Date().toISOString(),
-    items: filtered.map((item) => ({ id: item.id, title: item.title }))
+    items: filtered.map((item) => ({ id: item.id, title: item.title, mediaType: item.mediaType }))
   };
   order.push(eventId);
 
