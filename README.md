@@ -70,7 +70,7 @@ npm start
 - `!admin location NAME`
 - `!admin setglobalprompt "PROMPT"`
 - `!admin setglobalfactcheckprompt "PROMPT"`
-- `!admin setmonitorprompt "PROMPT"`
+- `!admin setmonitorprompt "PROMPT"` (appends extra instructions to the built-in regex prompt)
 - `!admin status`
 - `!admin monitors`
 - `!admin showmonitoring [N]`

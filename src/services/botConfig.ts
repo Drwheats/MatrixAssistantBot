@@ -19,8 +19,6 @@ export interface BotRuntimeConfig {
 }
 
 export const DEFAULT_PROMPT_COMMAND = "!blimpf";
-export const DEFAULT_MONITOR_PROMPT =
-  "You are a sysadmin and network monitoring specialist. You must create a short regex that matches similar logs while ignoring timestamps, numeric ids, ports, and IP addresses. Focus on the stable keywords and phrasing.";
 
 export async function loadBotConfig(
   stateStore: BotStateStore,
@@ -37,8 +35,7 @@ export async function loadBotConfig(
     normalizePromptText(userConfig.globalFactcheckPrompt) ??
     normalizePromptText(state.globalFactcheckPrompt) ??
     normalizePromptText(env.llmStudioFactcheckPrompt);
-  const monitorPrompt =
-    normalizePromptText(userConfig.monitorPrompt) ?? DEFAULT_MONITOR_PROMPT;
+  const monitorPrompt = normalizePromptText(userConfig.monitorPrompt);
   return {
     botDisplayName: state.botDisplayName,
     promptCommand,

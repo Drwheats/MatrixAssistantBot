@@ -12,6 +12,7 @@ import {
 } from "../utils/sysinfo";
 import { BotState } from "../services/botStateStore";
 import { geocodeLocation, getWeatherLocation } from "../services/weatherLocation";
+import { deriveMonitorPattern as deriveMonitorPatternWithLangChain } from "../services/monitorPatternGenerator";
 
 const ADMIN_PREFIX = "!admin";
 
@@ -600,7 +601,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
-    '!admin setmonitorprompt "PROMPT" - set monitor prompt (use "clear" to reset)',
+    '!admin setmonitorprompt "PROMPT" - append extra monitor regex instructions (use "clear" to reset)',
     '!admin setqbitlabel "{label=\\"value\\"}" - set qbittorrent label selector',
     "!admin addqbitlabel key=value - add/overwrite a qbittorrent label selector pair",
     "!admin clearqbitlabel - reset qbittorrent label selector",
@@ -750,7 +751,9 @@ async function handleSetMonitorPrompt(ctx: CommandContext, rawPrompt: string): P
   await ctx.userConfigStore.save({ monitorPrompt: parsed });
   await ctx.client.sendMessage(ctx.roomId, {
     msgtype: "m.text",
-    body: parsed ? "Monitor prompt updated." : "Monitor prompt cleared."
+    body: parsed
+      ? "Monitor prompt updated. It will be appended to the built-in regex instructions."
+      : "Monitor prompt cleared."
   });
 }
 
@@ -972,7 +975,7 @@ async function handleAddMonitor(ctx: CommandContext, rawArgs: string): Promise<v
   if (!pattern) {
     await ctx.client.sendMessage(ctx.roomId, {
       msgtype: "m.text",
-      body: "Unable to derive a monitor pattern from the sample log."
+      body: "Unable to derive a valid regex monitor pattern from the sample log."
     });
     return;
   }
@@ -1186,134 +1189,19 @@ async function handleAddMonitorLabel(ctx: CommandContext, rawArgs: string): Prom
 async function derivePattern(ctx: CommandContext, sample: string): Promise<string | null> {
   if (ctx.llmStudio && ctx.isAllowedUser) {
     try {
-      const systemPrompt = ctx.botConfig.monitorPrompt;
-      const userPrompt = [
-        "Return ONLY the regex pattern. No prose, no JSON, no markdown.",
-        "The pattern should be a safe regex fragment for Loki's |~ operator, without slashes.",
-        "Keep it short (<= 120 chars) and target only the meaningful part of the message.",
-        "Do NOT include dates/timestamps, bracketed ids, ports, or IPs in the pattern.",
-        'Example: for "Accepted password for mushroom from 192.168.0.1 port 2222" output "Accepted password for mushroom".',
-        `Log line: ${sample}`
-      ].join("\n");
-      const reply = await ctx.llmStudio.chat(userPrompt, systemPrompt);
-      const parsed = extractPattern(reply);
-      if (parsed && isPatternConsistent(parsed, sample)) {
-        return postProcessPattern(parsed);
+      const pattern = await deriveMonitorPatternWithLangChain(sample, {
+        customPrompt: ctx.botConfig.monitorPrompt,
+        model: ctx.botConfig.llmModel
+      });
+      if (pattern) {
+        return pattern;
       }
-      if (parsed) {
-        console.warn("LLM monitor pattern rejected (not found in sample).", {
-          pattern: parsed,
-          sample
-        });
-      }
+      console.warn("LLM monitor pattern rejected.", { sample });
     } catch {
-      // fall back to heuristic
+      // fall through to failure
     }
   }
-
-  const heuristic = heuristicPattern(sample);
-  return heuristic ? postProcessPattern(heuristic) : null;
-}
-
-function isPatternConsistent(pattern: string, sample: string): boolean {
-  const normalizedPattern = normalizeForMatch(pattern);
-  const normalizedSample = normalizeForMatch(postProcessPattern(sample));
-  if (!normalizedPattern || !normalizedSample) {
-    return false;
-  }
-  return normalizedSample.includes(normalizedPattern);
-}
-
-function normalizeForMatch(value: string): string {
-  const unescaped = value.replace(/\\(.)/g, "$1");
-  return unescaped
-    .replace(/\s+/g, " ")
-    .replace(/[“”]/g, "\"")
-    .trim()
-    .toLowerCase();
-}
-
-function extractPattern(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (!trimmed.startsWith("{") && !trimmed.includes("\n")) {
-    return trimPattern(trimmed);
-  }
-
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(match[0]) as { pattern?: string };
-    if (typeof parsed.pattern !== "string") {
-      return null;
-    }
-    return trimPattern(parsed.pattern);
-  } catch {
-    return null;
-  }
-}
-
-function trimPattern(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.length > 120) {
-    return trimmed.slice(0, 120);
-  }
-  return trimmed;
-}
-
-function postProcessPattern(pattern: string): string {
-  let text = pattern;
-  text = text.replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/g, "");
-  text = text.replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, "");
-  text = text.replace(/\bport\s+\d+\b/gi, "port");
-  text = text.replace(/\[\d+\]/g, "");
-  text = text.replace(/\b\d+\b/g, "");
-  text = text.replace(/\s{2,}/g, " ").trim();
-  if (text.length === 0) {
-    return pattern;
-  }
-  return text.length > 120 ? text.slice(0, 120) : text;
-}
-
-function heuristicPattern(sample: string): string | null {
-  const trimmed = sample.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  if (/file error alert/i.test(trimmed)) {
-    return escapeRegex("File error alert");
-  }
-  if (/added new torrent/i.test(trimmed)) {
-    return escapeRegex("Added new torrent");
-  }
-  if (/torrent download finished/i.test(trimmed)) {
-    return escapeRegex("Torrent download finished");
-  }
-
-  let text = trimmed;
-  const sepIndex = text.indexOf(" - ");
-  if (sepIndex >= 0) {
-    text = text.slice(sepIndex + 3).trim();
-  }
-  const words = text.split(/\s+/).filter(Boolean);
-  const phrase = words.slice(0, 6).join(" ");
-  if (!phrase) {
-    return null;
-  }
-  const escaped = escapeRegex(phrase);
-  return escaped.length > 120 ? escaped.slice(0, 120) : escaped;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+  return null;
 }
 
 function parseTwoQuotedArgs(args: string): { first: string; second: string } | null {

@@ -71,7 +71,7 @@ Admin command examples:
 - `!admin showmonitoring 10`
 - `!admin unmonitor 3`
 - `!admin monitorlabel mushroom host=mushroom`
-- `!admin setmonitorprompt "PROMPT"`
+- `!admin setmonitorprompt "PROMPT"` (appends extra instructions to the built-in regex prompt)
 
 ## Step 5: Configure Google Calendar (optional)
 
@@ -199,7 +199,7 @@ Test in room:
 Admin prompt overrides:
 - `!admin setglobalprompt "PROMPT"`
 - `!admin setglobalfactcheckprompt "PROMPT"`
-- `!admin setmonitorprompt "PROMPT"`
+- `!admin setmonitorprompt "PROMPT"` (appends extra instructions to the built-in regex prompt)
 - `!admin promptinfo` (show the prompt command and system prompts)
 - `!admin changemodel MODEL_NAME` (change the LLM model used for API requests)
 
