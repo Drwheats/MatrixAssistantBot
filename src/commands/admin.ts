@@ -131,6 +131,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (args.toLowerCase().startsWith("testing")) {
+    await handleTestingMode(ctx, args.slice("testing".length).trim());
+    return;
+  }
+
   if (args.toLowerCase().startsWith("unmonitor ")) {
     await handleRemoveMonitor(ctx, args.slice("unmonitor ".length).trim());
     return;
@@ -409,6 +414,7 @@ async function handleStatus(ctx: CommandContext): Promise<void> {
     `Bot display name: ${ctx.botConfig.botDisplayName ?? "(unchanged)"}`,
     `Prompt command: ${ctx.botConfig.promptCommand}`,
     `Open mode: ${ctx.botConfig.openMode ? "ON" : "OFF"}`,
+    `Testing mode: ${ctx.botConfig.testingMode ? "ON" : "OFF"}`,
     `Admin users (.env): ${allowedUsers}`,
     `Extra allowed users: ${extraUsers}`,
     `Seerr allowed users: ${seerrUsers}`,
@@ -586,6 +592,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin denyseerr @user:server - revoke Seerr access",
     "!admin users - list users and permissions",
     "!admin open on|off|status - toggle open mode",
+    "!admin testing [on|off|status] - toggle quiet testing mode",
     "!admin listprompts - list all prompts",
     "!admin changemodel MODEL_NAME - set LLM model for API requests",
     "!admin promptinfo - show LLM command and system prompts",
@@ -661,6 +668,39 @@ function normalizeUserId(value: string): string | null {
     return null;
   }
   return trimmed;
+}
+
+async function handleTestingMode(ctx: CommandContext, arg: string): Promise<void> {
+  const normalized = arg.trim().toLowerCase();
+  if (!normalized || normalized === "on") {
+    await ctx.userConfigStore.save({ testingMode: true });
+    console.log("Testing mode enabled (bot messages suppressed).");
+    return;
+  }
+
+  if (normalized === "off") {
+    await ctx.userConfigStore.save({ testingMode: false });
+    console.log("Testing mode disabled (bot messages active).");
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "Testing mode is now OFF."
+    });
+    return;
+  }
+
+  if (normalized === "status") {
+    console.log(`Testing mode status requested: ${ctx.botConfig.testingMode ? "ON" : "OFF"}.`);
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `Testing mode is ${ctx.botConfig.testingMode ? "ON" : "OFF"}.`
+    });
+    return;
+  }
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: "Usage: !admin testing [on|off|status]"
+  });
 }
 
 async function handleSetGlobalPrompt(ctx: CommandContext, rawPrompt: string): Promise<void> {
@@ -1157,8 +1197,14 @@ async function derivePattern(ctx: CommandContext, sample: string): Promise<strin
       ].join("\n");
       const reply = await ctx.llmStudio.chat(userPrompt, systemPrompt);
       const parsed = extractPattern(reply);
-      if (parsed) {
+      if (parsed && isPatternConsistent(parsed, sample)) {
         return postProcessPattern(parsed);
+      }
+      if (parsed) {
+        console.warn("LLM monitor pattern rejected (not found in sample).", {
+          pattern: parsed,
+          sample
+        });
       }
     } catch {
       // fall back to heuristic
@@ -1167,6 +1213,24 @@ async function derivePattern(ctx: CommandContext, sample: string): Promise<strin
 
   const heuristic = heuristicPattern(sample);
   return heuristic ? postProcessPattern(heuristic) : null;
+}
+
+function isPatternConsistent(pattern: string, sample: string): boolean {
+  const normalizedPattern = normalizeForMatch(pattern);
+  const normalizedSample = normalizeForMatch(postProcessPattern(sample));
+  if (!normalizedPattern || !normalizedSample) {
+    return false;
+  }
+  return normalizedSample.includes(normalizedPattern);
+}
+
+function normalizeForMatch(value: string): string {
+  const unescaped = value.replace(/\\(.)/g, "$1");
+  return unescaped
+    .replace(/\s+/g, " ")
+    .replace(/[“”]/g, "\"")
+    .trim()
+    .toLowerCase();
 }
 
 function extractPattern(raw: string): string | null {

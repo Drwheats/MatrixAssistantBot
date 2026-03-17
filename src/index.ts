@@ -58,6 +58,31 @@ const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
 const hardwareAlertsService = new HardwareAlertsService(grafanaAlertsChannelService, llmStudio);
 const sshLoginAlertsService = new SshLoginAlertsService(grafanaAlertsChannelService);
 
+async function isTestingModeEnabled(store: UserConfigStore): Promise<boolean> {
+  try {
+    const config = await store.load();
+    return config.testingMode === true;
+  } catch {
+    return false;
+  }
+}
+
+const originalSendMessage = client.sendMessage.bind(client);
+(client as any).sendMessage = async (...args: Parameters<MatrixClient["sendMessage"]>) => {
+  if (await isTestingModeEnabled(userConfigStore)) {
+    return;
+  }
+  return originalSendMessage(...args);
+};
+
+const originalSendEvent = client.sendEvent.bind(client);
+(client as any).sendEvent = async (...args: Parameters<MatrixClient["sendEvent"]>) => {
+  if (args[1] === "m.reaction" && (await isTestingModeEnabled(userConfigStore))) {
+    return;
+  }
+  return originalSendEvent(...args);
+};
+
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
   if (!event?.content || event.content.msgtype !== "m.text") {
     return;

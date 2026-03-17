@@ -12,6 +12,7 @@ export interface BotRuntimeConfig {
   globalFactcheckPrompt?: string;
   qbittorrentLabelSelector?: string;
   monitorPrompt?: string;
+  testingMode: boolean;
   weatherLocation: WeatherLocation;
   seerrAllowedUsers: string[];
   llmModel?: string;
@@ -47,6 +48,7 @@ export async function loadBotConfig(
     globalFactcheckPrompt,
     qbittorrentLabelSelector: normalizeLabelSelector(state.qbittorrentLabelSelector),
     monitorPrompt,
+    testingMode: userConfig.testingMode ?? false,
     weatherLocation: getWeatherLocation(state),
     seerrAllowedUsers: Array.isArray(state.seerrAllowedUsers) ? state.seerrAllowedUsers : [],
     llmModel: normalizePromptText(userConfig.llmModel) ?? env.LLM_STUDIO_MODEL
