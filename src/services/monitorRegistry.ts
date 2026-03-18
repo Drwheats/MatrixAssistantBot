@@ -1,8 +1,10 @@
 import { CommandContext } from "../types/commandContext";
+import { normalizeLokiSelector } from "../connectors/grafana";
 import { deriveMonitorPattern } from "./monitorPatternGenerator";
 import { BotState } from "./botStateStore";
+import { env } from "../config/env";
 
-const GLOBAL_MONITOR_SELECTOR = "{}";
+const GLOBAL_MONITOR_SELECTOR = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
 
 export interface SaveMonitorFromSampleOptions {
   rawCommand: string;

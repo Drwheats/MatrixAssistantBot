@@ -10,6 +10,7 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     '!trello due | !trello overdue | !trello create "TASK" DATE - Trello',
     "!factcheck - reply to a message to fact check it",
     `${promptCommand} weather | ${promptCommand} rundown | !admin sysinfo - weather, updates, device status`,
+    "!admin lastlogs - show the 5 latest Grafana logs visible to the bot",
     "",
     "Full command list:",
     "`https://github.com/Drwheats/MatrixAssistantBot/blob/main/README.md"

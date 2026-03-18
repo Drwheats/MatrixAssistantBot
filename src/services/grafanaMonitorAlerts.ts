@@ -1,5 +1,5 @@
 import { MatrixClient } from "matrix-bot-sdk";
-import { GrafanaConnector, GrafanaLogEntry } from "../connectors/grafana";
+import { GrafanaConnector, GrafanaLogEntry, normalizeLokiSelector } from "../connectors/grafana";
 import { GrafanaAlertsChannelService } from "./grafanaAlertsChannel";
 import { BotState, BotStateStore, MonitorDefinition } from "./botStateStore";
 import { env } from "../config/env";
@@ -9,6 +9,7 @@ const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_LOOKBACK_MS = 5 * 60_000;
 const DEFAULT_LIMIT = 50;
 const DEFAULT_DEDUPE_LIMIT = 2000;
+const DEFAULT_SELECTOR = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
 
 export class GrafanaMonitorAlertsService {
   private intervalHandle: NodeJS.Timeout | null = null;
@@ -36,7 +37,7 @@ export class GrafanaMonitorAlertsService {
       this.checkAndSend().catch((error) => {
         console.error("Monitor alert check failed:", error);
       });
-    }, DEFAULT_POLL_MS);
+    }, env.grafanaMonitorPollMs ?? DEFAULT_POLL_MS);
   }
 
   stop(): void {
@@ -65,7 +66,11 @@ export class GrafanaMonitorAlertsService {
       }
 
       for (const monitor of userConfig.monitors) {
-        await this.checkMonitor(state, roomId, monitor);
+        try {
+          await this.checkMonitor(state, roomId, monitor);
+        } catch (error) {
+          console.error(`Monitor alert check failed for "${monitor.name}" (${monitor.id}):`, error);
+        }
       }
     } finally {
       this.isRunning = false;
@@ -73,9 +78,14 @@ export class GrafanaMonitorAlertsService {
   }
 
   private async checkMonitor(state: BotState, roomId: string, monitor: MonitorDefinition): Promise<void> {
+    const selector = monitor.selector === "{}" ? DEFAULT_SELECTOR : monitor.selector;
     const safePattern = monitor.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    const query = `${monitor.selector} |~ "${safePattern}"`;
-    const logs = await this.grafana.queryLogs(query, DEFAULT_LOOKBACK_MS, DEFAULT_LIMIT);
+    const query = `${selector} |~ "${safePattern}"`;
+    const logs = await this.grafana.queryLogs(
+      query,
+      env.grafanaMonitorLookbackMs ?? DEFAULT_LOOKBACK_MS,
+      env.grafanaMonitorLimit ?? DEFAULT_LIMIT
+    );
     if (logs.length === 0) {
       return;
     }

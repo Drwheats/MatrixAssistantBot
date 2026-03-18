@@ -2,6 +2,7 @@ import { CommandContext } from "../types/commandContext";
 import { env } from "../config/env";
 import { normalizeLabelSelector, normalizePromptCommand, normalizePromptText } from "../services/botConfig";
 import { startLlmReactions } from "../utils/llmReactions";
+import { normalizeLokiSelector } from "../connectors/grafana";
 import {
   readActiveSshConnections,
   readBatteryPercent,
@@ -83,6 +84,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
 
   if (args.toLowerCase() === "sysinfo") {
     await handleSysinfo(ctx);
+    return;
+  }
+
+  if (args.toLowerCase() === "lastlogs") {
+    await handleLastLogs(ctx);
     return;
   }
 
@@ -540,6 +546,46 @@ async function handleSysinfo(ctx: CommandContext): Promise<void> {
   });
 }
 
+async function handleLastLogs(ctx: CommandContext): Promise<void> {
+  if (!env.hasGrafanaCredentials) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: "Grafana is not configured."
+    });
+    return;
+  }
+
+  const selector = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
+  const query = `${selector} |~ ".+"`;
+
+  try {
+    const logs = await ctx.grafana.queryLogs(query, 24 * 60 * 60_000, 5);
+    if (logs.length === 0) {
+      await ctx.client.sendMessage(ctx.roomId, {
+        msgtype: "m.text",
+        body: "No logs found in the last 24h."
+      });
+      return;
+    }
+
+    const lines = ["Last 5 Grafana logs:"];
+    for (const log of logs) {
+      lines.push(`- ${log.timestamp} ${truncateText(log.message, 280)}`);
+    }
+
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: lines.join("\n")
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: `Failed to read Grafana logs: ${message}`
+    });
+  }
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";
@@ -597,6 +643,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin changemodel MODEL_NAME - set LLM model for API requests",
     "!admin promptinfo - show LLM command and system prompts",
     "!admin sysinfo - send system info to alerts channel",
+    "!admin lastlogs - show the 5 latest Grafana logs visible to the bot",
     "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
@@ -1178,4 +1225,11 @@ function parseMonitorArgs(args: string): { name?: string; sample: string } | nul
   }
 
   return null;
+}
+
+function truncateText(value: string, limit: number): string {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit - 3)}...`;
 }
