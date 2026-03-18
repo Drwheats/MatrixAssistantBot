@@ -92,6 +92,11 @@ export async function handleAdminCommand(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (args.toLowerCase() === "grafanatest") {
+    await handleGrafanaTest(ctx);
+    return;
+  }
+
   if (args.toLowerCase().startsWith("setglobalprompt ")) {
     await handleSetGlobalPrompt(ctx, args.slice("setglobalprompt ".length).trim());
     return;
@@ -586,6 +591,77 @@ async function handleLastLogs(ctx: CommandContext): Promise<void> {
   }
 }
 
+async function handleGrafanaTest(ctx: CommandContext): Promise<void> {
+  const lines: string[] = ["Grafana integration test:"];
+  const selector = normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR);
+
+  lines.push(`- Credentials configured: ${env.hasGrafanaCredentials ? "YES" : "NO"}`);
+  lines.push(`- Grafana URL: ${env.GRAFANA_URL ?? "(missing)"}`);
+  lines.push(`- Loki datasource UID: ${env.GRAFANA_LOKI_DATASOURCE_UID ?? "(missing)"}`);
+  lines.push(`- Base selector: ${selector}`);
+
+  if (!env.hasGrafanaCredentials) {
+    await ctx.client.sendMessage(ctx.roomId, {
+      msgtype: "m.text",
+      body: lines.join("\n")
+    });
+    return;
+  }
+
+  const alertsStart = Date.now();
+  try {
+    const alerts = await ctx.grafana.getAlerts("all", 1);
+    lines.push(`- Alertmanager API: OK (${Date.now() - alertsStart}ms, sample count ${alerts.length})`);
+  } catch (error) {
+    lines.push(`- Alertmanager API: FAIL (${Date.now() - alertsStart}ms) ${formatError(error)}`);
+  }
+
+  const lokiStart = Date.now();
+  const smokeQuery = `${selector} |~ ".+"`;
+  try {
+    const logs = await ctx.grafana.queryLogs(smokeQuery, 60 * 60_000, 5);
+    if (logs.length === 0) {
+      lines.push(`- Loki query smoke test: OK (${Date.now() - lokiStart}ms, 0 logs in last 1h)`);
+    } else {
+      lines.push(`- Loki query smoke test: OK (${Date.now() - lokiStart}ms, ${logs.length} logs)`);
+      lines.push(`  Latest log: ${logs[0].timestamp} ${truncateText(logs[0].message, 160)}`);
+    }
+  } catch (error) {
+    lines.push(`- Loki query smoke test: FAIL (${Date.now() - lokiStart}ms) ${formatError(error)}`);
+  }
+
+  const userConfig = await ctx.userConfigStore.load();
+  if (userConfig.monitors.length === 0) {
+    lines.push("- Monitor checks: no monitors configured.");
+  } else {
+    lines.push(`- Monitor checks (${userConfig.monitors.length} configured):`);
+    const lookbackMs = env.grafanaMonitorLookbackMs ?? 5 * 60_000;
+
+    for (const monitor of userConfig.monitors.slice(0, 10)) {
+      const monitorSelector = monitor.selector === "{}" ? selector : monitor.selector;
+      const safePattern = monitor.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const monitorQuery = `${monitorSelector} |~ "${safePattern}"`;
+      try {
+        const logs = await ctx.grafana.queryLogs(monitorQuery, lookbackMs, 1);
+        lines.push(
+          `  - ${monitor.name}: OK (${logs.length > 0 ? "matched at least one log in lookback" : "no matches in lookback"})`
+        );
+      } catch (error) {
+        lines.push(`  - ${monitor.name}: FAIL ${formatError(error)}`);
+      }
+    }
+
+    if (userConfig.monitors.length > 10) {
+      lines.push(`  - ... skipped ${userConfig.monitors.length - 10} additional monitor(s)`);
+    }
+  }
+
+  await ctx.client.sendMessage(ctx.roomId, {
+    msgtype: "m.text",
+    body: lines.join("\n")
+  });
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";
@@ -644,6 +720,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin promptinfo - show LLM command and system prompts",
     "!admin sysinfo - send system info to alerts channel",
     "!admin lastlogs - show the 5 latest Grafana logs visible to the bot",
+    "!admin grafanatest - run Grafana API + Loki + monitor diagnostics",
     "!admin location NAME - set weather/timezone location (example: !admin location istanbul)",
     '!admin setglobalprompt "PROMPT" - set default LLM prompt (use "clear" to reset)',
     '!admin setglobalfactcheckprompt "PROMPT" - set factcheck prompt (use "clear" to reset)',
@@ -1232,4 +1309,9 @@ function truncateText(value: string, limit: number): string {
     return value;
   }
   return `${value.slice(0, limit - 3)}...`;
+}
+
+function formatError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return truncateText(message.replace(/\s+/g, " ").trim(), 220);
 }

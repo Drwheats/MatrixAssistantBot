@@ -64,11 +64,7 @@ export class GrafanaConnector {
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      const details = text ? ` - ${text}` : "";
-      throw new Error(
-        `Grafana API error: ${response.status} ${response.statusText}${details}`
-      );
+      throw new Error(await this.formatApiError(response));
     }
 
     const alerts = (await response.json()) as GrafanaAlert[];
@@ -189,7 +185,7 @@ export class GrafanaConnector {
     });
 
     if (!response.ok) {
-      throw new Error(`Grafana API error: ${response.status} ${response.statusText}`);
+      throw new Error(await this.formatApiError(response));
     }
 
     const payload = (await response.json()) as LokiQueryRangeResponse;
@@ -214,6 +210,18 @@ export class GrafanaConnector {
     return {
       Authorization: `Bearer ${env.GRAFANA_TOKEN!}`
     };
+  }
+
+  private async formatApiError(response: Response): Promise<string> {
+    let body = "";
+    try {
+      body = (await response.text()).trim();
+    } catch {
+      body = "";
+    }
+
+    const details = body ? ` - ${truncateForLog(body, 220)}` : "";
+    return `Grafana API error: ${response.status} ${response.statusText}${details}`;
   }
 
   private aggregateByService(logs: GrafanaLogEntry[], limit: number): Array<{ service: string; count: number }> {
