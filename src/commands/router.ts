@@ -5,6 +5,7 @@ import { handlePingCommand } from "./ping";
 import { handleTrelloCreateCommand, handleTrelloDueCommand, handleTrelloOverdueCommand } from "./trello";
 import { handleBlimpfCommand, handleFactcheckCommand } from "./llmStudio";
 import { handleAdminCommand } from "./admin";
+import { handleGithubCommand } from "./github";
 import { CommandContext } from "../types/commandContext";
 
 export async function routeCommand(ctx: CommandContext): Promise<void> {
@@ -43,6 +44,11 @@ export async function routeCommand(ctx: CommandContext): Promise<void> {
 
   if (normalized === "!grafana" || normalized.startsWith("!grafana ")) {
     await handleGrafanaCommand(ctx);
+    return;
+  }
+
+  if (normalized === "!github" || normalized.startsWith("!github ")) {
+    await handleGithubCommand(ctx);
     return;
   }
 

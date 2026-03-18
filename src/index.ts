@@ -1,4 +1,7 @@
 import { AutojoinRoomsMixin, LogLevel, LogService, MatrixClient, SimpleFsStorageProvider } from "matrix-bot-sdk";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { env } from "./config/env";
 import { GoogleCalendarConnector } from "./connectors/googleCalendar";
 import { GrafanaConnector } from "./connectors/grafana";
@@ -18,12 +21,26 @@ import { LlmStudioConnector } from "./connectors/llmStudio";
 import { UserConfigStore } from "./services/userConfigStore";
 import { HardwareAlertsService } from "./services/hardwareAlerts";
 import { SshLoginAlertsService } from "./services/sshLoginAlerts";
+import { StartupIntegrationReportService } from "./services/startupIntegrationReport";
+import { GithubConnector } from "./connectors/github";
+import { GithubAlertsService } from "./services/githubAlerts";
 
 LogService.setLevel(LogLevel.ERROR);
 
 const startupTimestamp = Date.now();
 
-const storage = new SimpleFsStorageProvider("bot-storage.json");
+const dataDir = resolve(env.BOT_DATA_DIR?.trim() || join(homedir(), ".matrix-assistant-bot"));
+ensureDataDir(dataDir);
+
+const botStoragePath = join(dataDir, "bot-storage.json");
+const statePath = join(dataDir, "assistant-state.json");
+const userConfigPath = join(dataDir, "user-config.json");
+
+migrateLegacyFile("bot-storage.json", botStoragePath);
+migrateLegacyFile("assistant-state.json", statePath);
+migrateLegacyFile("user-config.json", userConfigPath);
+
+const storage = new SimpleFsStorageProvider(botStoragePath);
 const client = new MatrixClient(env.MATRIX_HOMESERVER_URL, env.MATRIX_ACCESS_TOKEN, storage);
 AutojoinRoomsMixin.setupOnClient(client);
 
@@ -32,8 +49,9 @@ const trello = new TrelloConnector();
 const grafana = new GrafanaConnector();
 const llmStudio = new LlmStudioConnector();
 const jellyseerr = new JellyseerrConnector();
-const stateStore = new BotStateStore("assistant-state.json");
-const userConfigStore = new UserConfigStore("user-config.json");
+const github = new GithubConnector();
+const stateStore = new BotStateStore(statePath);
+const userConfigStore = new UserConfigStore(userConfigPath);
 const announcementService = new AnnouncementService(client, trello, stateStore);
 const grafanaAlertsChannelService = new GrafanaAlertsChannelService(client, stateStore);
 const grafanaSecurityLoginAlertsService = new GrafanaSecurityLoginAlertsService(
@@ -57,6 +75,33 @@ const grafanaMonitorAlertsService = new GrafanaMonitorAlertsService(
 );
 const hardwareAlertsService = new HardwareAlertsService(grafanaAlertsChannelService, llmStudio);
 const sshLoginAlertsService = new SshLoginAlertsService(grafanaAlertsChannelService);
+const startupIntegrationReportService = new StartupIntegrationReportService(
+  grafanaAlertsChannelService,
+  grafana,
+  trello,
+  googleCalendar,
+  llmStudio,
+  jellyseerr,
+  github
+);
+const githubAlertsService = new GithubAlertsService(github, grafanaAlertsChannelService, stateStore);
+
+function ensureDataDir(dirPath: string): void {
+  mkdirSync(dirPath, { recursive: true });
+}
+
+function migrateLegacyFile(legacyFileName: string, targetPath: string): void {
+  if (existsSync(targetPath)) {
+    return;
+  }
+
+  const legacyPath = resolve(process.cwd(), legacyFileName);
+  if (legacyPath === targetPath || !existsSync(legacyPath)) {
+    return;
+  }
+
+  copyFileSync(legacyPath, targetPath);
+}
 
 async function isTestingModeEnabled(store: UserConfigStore): Promise<boolean> {
   try {
@@ -120,7 +165,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       trello,
       grafana,
       llmStudio,
-      jellyseerr
+      jellyseerr,
+      github
     },
     event
   );
@@ -145,7 +191,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       trello,
       grafana,
       llmStudio,
-      jellyseerr
+      jellyseerr,
+      github
     },
     event
   );
@@ -170,7 +217,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
       trello,
       grafana,
       llmStudio,
-      jellyseerr
+      jellyseerr,
+      github
     },
     event
   );
@@ -198,7 +246,8 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     trello,
     grafana,
     llmStudio,
-    jellyseerr
+    jellyseerr,
+    github
   });
 });
 
@@ -316,14 +365,21 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
 });
 
 async function main(): Promise<void> {
+  console.log(`Using bot data dir: ${dataDir}`);
   await client.start();
   await grafanaAlertsChannelService.start();
   await grafanaSecurityLoginAlertsService.start();
   await grafanaQbittorrentAlertsService.start();
   await grafanaMonitorAlertsService.start();
+  await githubAlertsService.start();
   await hardwareAlertsService.start();
   await sshLoginAlertsService.start();
   await announcementService.start();
+  try {
+    await startupIntegrationReportService.postStartupReport();
+  } catch (error) {
+    console.error("Failed to send startup integration report:", error);
+  }
   console.log(`Matrix Assistant Bot is running as ${env.MATRIX_BOT_USER_ID}`);
 }
 

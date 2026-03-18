@@ -237,6 +237,37 @@ npm run build
 npm start
 ```
 
+## Step 11: Configure GitHub (optional)
+
+Required for:
+- `!github summary`
+- `!github updates`
+- `!github issues`
+- `!github prs`
+- `!github ci`
+
+1. Create a GitHub token with read access to repo metadata, issues, pull requests, and actions.
+2. Put these in `.env`:
+   - `GITHUB_TOKEN`
+   - `GITHUB_OWNER` (user or org)
+   - `GITHUB_REPO`
+   - Optional: `GITHUB_API_URL` (for GitHub Enterprise; defaults to `https://api.github.com`)
+   - Optional: `GITHUB_ALERTS_ENABLED` (default `true`)
+   - Optional: `GITHUB_ALERTS_POLL_MS` (default `60000`)
+   - Optional: `GITHUB_ALERTS_LIMIT` (default `20`)
+
+Test in room:
+- `!github summary`
+- `!github updates`
+- `!github issues`
+- `!github prs`
+- `!github ci`
+
+When enabled, the bot also posts GitHub alerts to the `Grafana Alerts` room for:
+- New issues
+- New pull requests
+- Failed CI/CD workflow runs
+
 ## Troubleshooting
 
 - `Unknown command`: use `!help` to list commands.
@@ -244,4 +275,5 @@ npm start
 - `Trello is not configured`: one or more Trello env vars are missing.
 - `Grafana is not configured`: one or more Grafana env vars are missing.
 - `Seerr is not configured`: one or more Seerr env vars are missing.
+- `GitHub is not configured`: one or more GitHub env vars are missing.
 - No bot reply: confirm bot is in room, token is valid, and homeserver URL is correct.

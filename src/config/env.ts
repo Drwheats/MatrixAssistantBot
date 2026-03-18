@@ -8,6 +8,7 @@ const envSchema = z.object({
   MATRIX_ACCESS_TOKEN: z.string().min(1),
   MATRIX_BOT_USER_ID: z.string().min(1),
   MATRIX_ALLOWED_USERS: z.string().default(""),
+  BOT_DATA_DIR: z.string().optional(),
 
   GOOGLE_CALENDAR_CLIENT_EMAIL: z.string().email().optional(),
   GOOGLE_CALENDAR_PRIVATE_KEY: z.string().optional(),
@@ -36,6 +37,13 @@ const envSchema = z.object({
   GRAFANA_MONITOR_POLL_MS: z.coerce.number().optional(),
   GRAFANA_MONITOR_LOOKBACK_MS: z.coerce.number().optional(),
   GRAFANA_MONITOR_LIMIT: z.coerce.number().optional(),
+  GITHUB_API_URL: z.string().url().optional(),
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_OWNER: z.string().optional(),
+  GITHUB_REPO: z.string().optional(),
+  GITHUB_ALERTS_ENABLED: z.coerce.boolean().optional(),
+  GITHUB_ALERTS_POLL_MS: z.coerce.number().optional(),
+  GITHUB_ALERTS_LIMIT: z.coerce.number().optional(),
 
   LLM_STUDIO_BASE_URL: z.string().url().default("http://localhost:1234"),
   LLM_STUDIO_API_KEY: z.string().optional(),
@@ -79,6 +87,13 @@ export const env = {
     !!parsed.data.GRAFANA_URL &&
     !!parsed.data.GRAFANA_TOKEN &&
     !!parsed.data.GRAFANA_LOKI_DATASOURCE_UID,
+  hasGithubCredentials:
+    !!parsed.data.GITHUB_TOKEN &&
+    !!parsed.data.GITHUB_OWNER &&
+    !!parsed.data.GITHUB_REPO,
+  githubAlertsEnabled: parsed.data.GITHUB_ALERTS_ENABLED ?? true,
+  githubAlertsPollMs: parsed.data.GITHUB_ALERTS_POLL_MS ?? 60_000,
+  githubAlertsLimit: parsed.data.GITHUB_ALERTS_LIMIT ?? 20,
   hasJellyseerrCredentials: !!parsed.data.JELLYSEERR_URL && !!parsed.data.JELLYSEERR_API_KEY,
   grafanaSecurityLoginEnabled:
     parsed.data.GRAFANA_SECURITY_LOGIN_ALERTS_ENABLED ??

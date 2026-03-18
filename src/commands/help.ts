@@ -7,6 +7,7 @@ export async function handleHelpCommand(ctx: CommandContext): Promise<void> {
     `${promptCommand} YOUR_QUESTION - ask the assistant`,
     `${promptCommand} monitor "LOG LINE" - save a regex monitor for matching logs`,
     `${promptCommand} download MOVIE - request a Jellyfin movie (Seerr)`,
+    "!github summary | !github updates | !github issues | !github prs | !github ci",
     '!trello due | !trello overdue | !trello create "TASK" DATE - Trello',
     "!factcheck - reply to a message to fact check it",
     `${promptCommand} weather | ${promptCommand} rundown | !admin sysinfo - weather, updates, device status`,

@@ -30,6 +30,9 @@ export interface BotState {
   seerrRequestOrder: string[];
   seerrAllowedUsers: string[];
   errorReactionTargets: Record<string, string>;
+  githubIssueSeenKeys: string[];
+  githubPullSeenKeys: string[];
+  githubFailedRunSeenKeys: string[];
 }
 
 export interface MonitorDefinition {
@@ -66,7 +69,10 @@ const DEFAULT_STATE: BotState = {
   seerrRequestTargets: {},
   seerrRequestOrder: [],
   seerrAllowedUsers: [],
-  errorReactionTargets: {}
+  errorReactionTargets: {},
+  githubIssueSeenKeys: [],
+  githubPullSeenKeys: [],
+  githubFailedRunSeenKeys: []
 };
 
 export class BotStateStore {
@@ -115,7 +121,10 @@ export class BotStateStore {
         seerrRequestTargets: isRecordOfSeerrTarget(parsed.seerrRequestTargets) ? parsed.seerrRequestTargets : {},
         seerrRequestOrder: Array.isArray(parsed.seerrRequestOrder) ? parsed.seerrRequestOrder : [],
         seerrAllowedUsers: Array.isArray(parsed.seerrAllowedUsers) ? parsed.seerrAllowedUsers : [],
-        errorReactionTargets: isRecordOfString(parsed.errorReactionTargets) ? parsed.errorReactionTargets : {}
+        errorReactionTargets: isRecordOfString(parsed.errorReactionTargets) ? parsed.errorReactionTargets : {},
+        githubIssueSeenKeys: Array.isArray(parsed.githubIssueSeenKeys) ? parsed.githubIssueSeenKeys : [],
+        githubPullSeenKeys: Array.isArray(parsed.githubPullSeenKeys) ? parsed.githubPullSeenKeys : [],
+        githubFailedRunSeenKeys: Array.isArray(parsed.githubFailedRunSeenKeys) ? parsed.githubFailedRunSeenKeys : []
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -142,6 +151,9 @@ export class BotStateStore {
     const seerrRequestOrder = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder : undefined;
     const seerrAllowedUsers = Array.isArray(state.seerrAllowedUsers) ? state.seerrAllowedUsers : undefined;
     const errorReactionTargets = isRecordOfString(state.errorReactionTargets) ? state.errorReactionTargets : undefined;
+    const githubIssueSeenKeys = Array.isArray(state.githubIssueSeenKeys) ? state.githubIssueSeenKeys : [];
+    const githubPullSeenKeys = Array.isArray(state.githubPullSeenKeys) ? state.githubPullSeenKeys : [];
+    const githubFailedRunSeenKeys = Array.isArray(state.githubFailedRunSeenKeys) ? state.githubFailedRunSeenKeys : [];
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -170,7 +182,10 @@ export class BotStateStore {
       seerrRequestTargets: seerrRequestTargets ?? current.seerrRequestTargets ?? {},
       seerrRequestOrder: seerrRequestOrder ?? current.seerrRequestOrder ?? [],
       seerrAllowedUsers: seerrAllowedUsers ?? current.seerrAllowedUsers ?? [],
-      errorReactionTargets: errorReactionTargets ?? current.errorReactionTargets ?? {}
+      errorReactionTargets: errorReactionTargets ?? current.errorReactionTargets ?? {},
+      githubIssueSeenKeys: mergeUnique(current.githubIssueSeenKeys ?? [], githubIssueSeenKeys, 5000),
+      githubPullSeenKeys: mergeUnique(current.githubPullSeenKeys ?? [], githubPullSeenKeys, 5000),
+      githubFailedRunSeenKeys: mergeUnique(current.githubFailedRunSeenKeys ?? [], githubFailedRunSeenKeys, 5000)
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");

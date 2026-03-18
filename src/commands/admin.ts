@@ -736,6 +736,7 @@ async function sendAdminHelp(ctx: CommandContext): Promise<void> {
     "!admin unmonitor N - remove monitor by number from last list",
     "!admin unmonitor name - remove a monitor by name",
     "!admin monitors - list active monitors",
+    "!github help - list GitHub repo/issue/CI commands",
     "!admin status - show current settings"
   ];
 

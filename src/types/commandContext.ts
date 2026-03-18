@@ -4,6 +4,7 @@ import { TrelloConnector } from "../connectors/trello";
 import { GrafanaConnector } from "../connectors/grafana";
 import { LlmStudioConnector } from "../connectors/llmStudio";
 import { JellyseerrConnector } from "../connectors/jellyseerr";
+import { GithubConnector } from "../connectors/github";
 import { BotStateStore } from "../services/botStateStore";
 import { BotRuntimeConfig } from "../services/botConfig";
 import { UserConfigStore } from "../services/userConfigStore";
@@ -26,4 +27,5 @@ export interface CommandContext {
   grafana: GrafanaConnector;
   llmStudio: LlmStudioConnector;
   jellyseerr: JellyseerrConnector;
+  github: GithubConnector;
 }

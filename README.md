@@ -6,6 +6,7 @@ A Matrix bot that responds to chat commands and can pull data from:
 - Grafana (`!grafana critical`, `!grafana alerts`, `!grafana incident`)
 - LLM Studio (`!blimpf` by default, plus `!factcheck`)
 - Seerr (Jellyseerr) (`!blimpf download`)
+- GitHub (`!github summary`, `!github updates`, `!github issues`, `!github prs`, `!github ci`)
 - Grafana security login alerts (optional, posts SSH password logins to Grafana Alerts room)
 - Grafana qbittorrent alerts (optional, posts downloads started/finished to Grafana Alerts room)
 
@@ -50,6 +51,12 @@ npm start
 - `!grafana service "NAME" [window]`
 - `!grafana spikes [window]`
 - `!grafana query "LOKI_QUERY" [window]`
+- `!github help`
+- `!github summary`
+- `!github updates`
+- `!github issues`
+- `!github prs`
+- `!github ci`
 - `!blimpf PROMPT` (default prompt command; can be renamed)
 - `!blimpf download MOVIE`
 - `!blimpf weather`
@@ -89,6 +96,12 @@ Reply to the bot's card-created message to append your reply text to the Trello 
 
 Integration commands require credentials in `.env`.
 Admin commands require the user to be listed in `MATRIX_ALLOWED_USERS`.
+
+GitHub proactive alerts (new issues, new pull requests, failed CI/CD runs) are posted to the `Grafana Alerts`
+room when GitHub is configured. Tune with:
+- `GITHUB_ALERTS_ENABLED` (default `true`)
+- `GITHUB_ALERTS_POLL_MS` (default `60000`)
+- `GITHUB_ALERTS_LIMIT` (default `20`)
 
 LLM Studio supports optional global prompts via:
 - `LLM_STUDIO_GLOBAL_PROMPT`
