@@ -1,0 +1,11 @@
+.git
+.github
+.vscode
+node_modules
+dist
+npm-debug.log*
+.env
+assistant-state.json
+bot-storage.json
+user-config.json
+*.local

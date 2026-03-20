@@ -35,6 +35,29 @@ npm run build
 npm start
 ```
 
+Run with Docker:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Notes:
+- Container state files are stored in the `bot-data` volume (`BOT_DATA_DIR=/data`).
+- If LLM Studio or Jellyseerr run on your host machine, set URLs in `.env` to `http://host.docker.internal:<port>` instead of `localhost`.
+
 ## 3. Bot commands
 
 - `!ping`
