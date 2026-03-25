@@ -45,9 +45,10 @@ export async function fetchWeather(location: WeatherLocation): Promise<string> {
     const url = new URL("https://api.open-meteo.com/v1/forecast");
     url.searchParams.set("latitude", location.latitude.toString());
     url.searchParams.set("longitude", location.longitude.toString());
-    url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode");
+    url.searchParams.set("daily", "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum");
+    url.searchParams.set("current", "temperature_2m,weather_code");
     url.searchParams.set("timezone", location.timezone);
-    url.searchParams.set("forecast_days", "1");
+    url.searchParams.set("forecast_days", "2");
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -55,23 +56,40 @@ export async function fetchWeather(location: WeatherLocation): Promise<string> {
     }
 
     const data = (await response.json()) as {
+      current?: {
+        temperature_2m?: number;
+        weather_code?: number;
+      };
       daily?: {
+        time?: string[];
         temperature_2m_max?: number[];
         temperature_2m_min?: number[];
         precipitation_sum?: number[];
-        weathercode?: number[];
+        weather_code?: number[];
       };
     };
 
-    const max = data.daily?.temperature_2m_max?.[0];
-    const min = data.daily?.temperature_2m_min?.[0];
-    const precip = data.daily?.precipitation_sum?.[0];
-    const code = data.daily?.weathercode?.[0];
+    const todayKey = zonedDateKey(new Date(), location.timezone);
+    const timeSeries = data.daily?.time ?? [];
+    const dayIndex = Math.max(0, timeSeries.findIndex((day) => day === todayKey));
+
+    const max = data.daily?.temperature_2m_max?.[dayIndex];
+    const min = data.daily?.temperature_2m_min?.[dayIndex];
+    const precip = data.daily?.precipitation_sum?.[dayIndex];
+    const dailyCode = data.daily?.weather_code?.[dayIndex];
+    const currentTemp = data.current?.temperature_2m;
+    const currentCode = data.current?.weather_code;
 
     const parts = [];
-    const description = typeof code === "number" ? describeWeatherCode(code) : null;
+    const description = typeof currentCode === "number" ? describeWeatherCode(currentCode) : null;
+    const fallbackDescription = typeof dailyCode === "number" ? describeWeatherCode(dailyCode) : null;
     if (description) {
       parts.push(description);
+    } else if (fallbackDescription) {
+      parts.push(fallbackDescription);
+    }
+    if (typeof currentTemp === "number") {
+      parts.push(`Now ${Math.round(currentTemp)}°C`);
     }
     if (typeof min === "number" && typeof max === "number") {
       parts.push(`${Math.round(min)}–${Math.round(max)}°C`);
@@ -89,6 +107,19 @@ export async function fetchWeather(location: WeatherLocation): Promise<string> {
     console.warn("Failed to fetch weather:", error);
     return "Unavailable.";
   }
+}
+
+function zonedDateKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 function formatInTimezone(value: string, timeZone: string): string {

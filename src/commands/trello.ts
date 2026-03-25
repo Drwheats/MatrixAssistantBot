@@ -317,6 +317,11 @@ function parseNaturalDate(input: string): Date | null {
     }
   }
 
+  const localDateLiteral = parseLocalDateLiteral(text);
+  if (localDateLiteral) {
+    return withOptionalTime(localDateLiteral, time);
+  }
+
   const parsed = Date.parse(dateText);
   if (Number.isNaN(parsed)) {
     return null;
@@ -543,4 +548,26 @@ function parseRelativeDuration(text: string): number | null {
   }
 
   return null;
+}
+
+function parseLocalDateLiteral(text: string): Date | null {
+  const trimmed = text.trim();
+  const ymd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!ymd) {
+    return null;
+  }
+
+  const year = Number(ymd[1]);
+  const monthIndex = Number(ymd[2]) - 1;
+  const day = Number(ymd[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const result = new Date(year, monthIndex, day);
+  if (result.getFullYear() !== year || result.getMonth() !== monthIndex || result.getDate() !== day) {
+    return null;
+  }
+
+  return result;
 }
