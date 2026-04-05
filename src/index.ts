@@ -1,4 +1,5 @@
 import { AutojoinRoomsMixin, LogLevel, LogService, MatrixClient, SimpleFsStorageProvider } from "matrix-bot-sdk";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -24,6 +25,7 @@ import { SshLoginAlertsService } from "./services/sshLoginAlerts";
 import { StartupIntegrationReportService } from "./services/startupIntegrationReport";
 import { GithubConnector } from "./connectors/github";
 import { GithubAlertsService } from "./services/githubAlerts";
+import { QuietHoursService } from "./services/quietHours";
 
 LogService.setLevel(LogLevel.ERROR);
 
@@ -113,10 +115,27 @@ async function isTestingModeEnabled(store: UserConfigStore): Promise<boolean> {
 }
 
 const originalSendMessage = client.sendMessage.bind(client);
+const immediateSendContext = new AsyncLocalStorage<{ bypassQuietHours: boolean }>();
+const quietHoursService = new QuietHoursService(
+  stateStore,
+  (roomId: string, content: Record<string, unknown>) => originalSendMessage(roomId, content as any)
+);
 (client as any).sendMessage = async (...args: Parameters<MatrixClient["sendMessage"]>) => {
   if (await isTestingModeEnabled(userConfigStore)) {
     return;
   }
+
+  const [roomId, content] = args;
+  const body = (content as { body?: unknown } | undefined)?.body;
+  const msgtype = (content as { msgtype?: unknown } | undefined)?.msgtype;
+  const bypassQuietHours = immediateSendContext.getStore()?.bypassQuietHours === true;
+  if (bypassQuietHours) {
+    return originalSendMessage(...args);
+  }
+  if (typeof roomId === "string" && typeof body === "string" && msgtype === "m.text") {
+    return quietHoursService.sendText(roomId, body, content as Record<string, unknown>);
+  }
+
   return originalSendMessage(...args);
 };
 
@@ -129,6 +148,7 @@ const originalSendEvent = client.sendEvent.bind(client);
 };
 
 client.on("room.message", async (roomId: string, event: Record<string, any>) => {
+  await immediateSendContext.run({ bypassQuietHours: true }, async () => {
   if (!event?.content || event.content.msgtype !== "m.text") {
     return;
   }
@@ -249,9 +269,11 @@ client.on("room.message", async (roomId: string, event: Record<string, any>) => 
     jellyseerr,
     github
   });
+  });
 });
 
 client.on("room.event", async (roomId: string, event: Record<string, any>) => {
+  await immediateSendContext.run({ bypassQuietHours: true }, async () => {
   if (!event || event.type !== "m.reaction") {
     return;
   }
@@ -362,11 +384,13 @@ client.on("room.event", async (roomId: string, event: Record<string, any>) => {
     delete state.trelloAlertTargets[targetEventId];
     await stateStore.save({ trelloAlertTargets: state.trelloAlertTargets });
   }
+  });
 });
 
 async function main(): Promise<void> {
   console.log(`Using bot data dir: ${dataDir}`);
   await client.start();
+  await quietHoursService.start();
   await grafanaAlertsChannelService.start();
   await grafanaSecurityLoginAlertsService.start();
   await grafanaQbittorrentAlertsService.start();

@@ -33,6 +33,14 @@ export interface BotState {
   githubIssueSeenKeys: string[];
   githubPullSeenKeys: string[];
   githubFailedRunSeenKeys: string[];
+  deferredMessages: DeferredMessage[];
+  lastDeferredFlushISO?: string;
+}
+
+export interface DeferredMessage {
+  roomId: string;
+  body: string;
+  queuedAtISO: string;
 }
 
 export interface MonitorDefinition {
@@ -72,7 +80,8 @@ const DEFAULT_STATE: BotState = {
   errorReactionTargets: {},
   githubIssueSeenKeys: [],
   githubPullSeenKeys: [],
-  githubFailedRunSeenKeys: []
+  githubFailedRunSeenKeys: [],
+  deferredMessages: []
 };
 
 export class BotStateStore {
@@ -124,7 +133,10 @@ export class BotStateStore {
         errorReactionTargets: isRecordOfString(parsed.errorReactionTargets) ? parsed.errorReactionTargets : {},
         githubIssueSeenKeys: Array.isArray(parsed.githubIssueSeenKeys) ? parsed.githubIssueSeenKeys : [],
         githubPullSeenKeys: Array.isArray(parsed.githubPullSeenKeys) ? parsed.githubPullSeenKeys : [],
-        githubFailedRunSeenKeys: Array.isArray(parsed.githubFailedRunSeenKeys) ? parsed.githubFailedRunSeenKeys : []
+        githubFailedRunSeenKeys: Array.isArray(parsed.githubFailedRunSeenKeys) ? parsed.githubFailedRunSeenKeys : [],
+        deferredMessages: Array.isArray(parsed.deferredMessages) ? parsed.deferredMessages.filter(isDeferredMessage) : [],
+        lastDeferredFlushISO:
+          typeof parsed.lastDeferredFlushISO === "string" ? parsed.lastDeferredFlushISO : undefined
       };
     } catch {
       return { ...DEFAULT_STATE };
@@ -154,6 +166,7 @@ export class BotStateStore {
     const githubIssueSeenKeys = Array.isArray(state.githubIssueSeenKeys) ? state.githubIssueSeenKeys : [];
     const githubPullSeenKeys = Array.isArray(state.githubPullSeenKeys) ? state.githubPullSeenKeys : [];
     const githubFailedRunSeenKeys = Array.isArray(state.githubFailedRunSeenKeys) ? state.githubFailedRunSeenKeys : [];
+    const deferredMessages = Array.isArray(state.deferredMessages) ? state.deferredMessages.filter(isDeferredMessage) : undefined;
     const merged: BotState = {
       announcementRoomId: state.announcementRoomId ?? current.announcementRoomId,
       grafanaAlertsRoomId: state.grafanaAlertsRoomId ?? current.grafanaAlertsRoomId,
@@ -185,7 +198,9 @@ export class BotStateStore {
       errorReactionTargets: errorReactionTargets ?? current.errorReactionTargets ?? {},
       githubIssueSeenKeys: mergeUnique(current.githubIssueSeenKeys ?? [], githubIssueSeenKeys, 5000),
       githubPullSeenKeys: mergeUnique(current.githubPullSeenKeys ?? [], githubPullSeenKeys, 5000),
-      githubFailedRunSeenKeys: mergeUnique(current.githubFailedRunSeenKeys ?? [], githubFailedRunSeenKeys, 5000)
+      githubFailedRunSeenKeys: mergeUnique(current.githubFailedRunSeenKeys ?? [], githubFailedRunSeenKeys, 5000),
+      deferredMessages: deferredMessages ?? current.deferredMessages ?? [],
+      lastDeferredFlushISO: latestISO(state.lastDeferredFlushISO, current.lastDeferredFlushISO)
     };
 
     await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
@@ -276,4 +291,17 @@ function isSeerrTarget(value: unknown): value is SeerrRequestTarget {
     }
   }
   return true;
+}
+
+function isDeferredMessage(value: unknown): value is DeferredMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const message = value as DeferredMessage;
+  return (
+    typeof message.roomId === "string" &&
+    typeof message.body === "string" &&
+    typeof message.queuedAtISO === "string"
+  );
 }

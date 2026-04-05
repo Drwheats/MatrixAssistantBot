@@ -215,6 +215,9 @@ export class AnnouncementService {
       msgtype: "m.text",
       body
     });
+    if (!eventId) {
+      return;
+    }
 
     await this.client.sendEvent(roomId, "m.reaction", {
       "m.relates_to": {

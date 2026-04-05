@@ -139,16 +139,6 @@ export class GrafanaSecurityLoginAlertsService {
       return;
     }
 
-    try {
-      const parentEvent = await this.client.getEvent(roomId, eventId);
-      if (parentEvent) {
-        await this.client.replyText(roomId, parentEvent, body);
-        return;
-      }
-    } catch (error) {
-      console.warn("Failed to load parent event for reply:", error);
-    }
-
     await this.client.sendMessage(roomId, {
       msgtype: "m.text",
       body,
