@@ -1,5 +1,6 @@
 import { CommandContext } from "../types/commandContext";
 import { JellyseerrMovieDetails, JellyseerrSearchResult } from "../connectors/jellyseerr";
+import { SeerrRequestTarget } from "../services/botStateStore";
 import { startLlmReactions } from "../utils/llmReactions";
 import { buildTrelloSummary, fetchWeather, renderDueTodayLines } from "../services/trelloSummary";
 import { sendErrorReply } from "../utils/errorReactions";
@@ -7,6 +8,7 @@ import { saveMonitorFromSample } from "../services/monitorRegistry";
 
 const FACTCHECK_SYSTEM_PROMPT = "You are a fact checker. Check this post.";
 const SEERR_REPLY_LIMIT = 500;
+const SEERR_SELECTION_WINDOW_MS = 2 * 60 * 1000;
 
 export async function handleBlimpfCommand(ctx: CommandContext): Promise<void> {
   const promptCommand = ctx.botConfig.promptCommand;
@@ -127,14 +129,26 @@ export async function handleBlimpfDownloadReplyMessage(
     return false;
   }
 
-  const replyToEventId = getReplyToEventId(event);
-  if (!replyToEventId) {
+  const state = await ctx.stateStore.load();
+  const staleEventIds = findExpiredSeerrTargets(state.seerrRequestTargets ?? {});
+  if (staleEventIds.length > 0) {
+    await dropSeerrTargets(ctx, staleEventIds);
+  }
+
+  const targetInfo = resolveSeerrSelectionTarget(state, ctx, event);
+  if (!targetInfo) {
     return false;
   }
 
-  const state = await ctx.stateStore.load();
-  const target = state.seerrRequestTargets?.[replyToEventId];
-  if (!target) {
+  const { eventId: targetEventId, target } = targetInfo;
+  if (!isSeerrTargetWithinWindow(target)) {
+    await dropSeerrTarget(ctx, targetEventId);
+    return false;
+  }
+  if (target.roomId && target.roomId !== ctx.roomId) {
+    return false;
+  }
+  if (target.requester && target.requester !== ctx.sender) {
     return false;
   }
 
@@ -148,7 +162,7 @@ export async function handleBlimpfDownloadReplyMessage(
   try {
     await ctx.jellyseerr.requestMedia(selection.mediaType, selection.id);
     await sendReply(ctx, event?.event_id ?? ctx.eventId, `Requested: ${selection.title}`);
-    await dropSeerrTarget(ctx, replyToEventId);
+    await dropSeerrTarget(ctx, targetEventId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     await sendErrorReply(ctx, event?.event_id ?? ctx.eventId, `Seerr error: ${message}`);
@@ -232,7 +246,7 @@ async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise
 
     const lines = [
       `Top ${items.length} Seerr results for "${query}":`,
-      "Reply in this thread with a number (1-5) to request the title."
+      "Reply in this thread or send a number (1-5) in this room within 2 minutes to request the title."
     ];
 
     details.forEach(({ item, details }, index) => {
@@ -254,6 +268,8 @@ async function handleBlimpfDownload(ctx: CommandContext, query: string): Promise
       await rememberSeerrTarget(
         ctx,
         eventId,
+        ctx.roomId,
+        ctx.sender,
         details.map(({ item, details }) => ({
           id: item.id ?? 0,
           title: item.title ?? details?.title ?? "Untitled",
@@ -347,6 +363,15 @@ function getReplyToEventId(event: Record<string, any>): string | null {
   return typeof eventId === "string" ? eventId : null;
 }
 
+function getThreadRootEventId(event: Record<string, any>): string | null {
+  const relatesTo = event?.content?.["m.relates_to"];
+  if (relatesTo?.rel_type !== "m.thread") {
+    return null;
+  }
+  const eventId = relatesTo?.event_id;
+  return typeof eventId === "string" ? eventId : null;
+}
+
 async function sendReply(ctx: CommandContext, eventId: string | undefined, body: string): Promise<void> {
   if (!eventId) {
     await ctx.client.sendMessage(ctx.roomId, {
@@ -393,6 +418,8 @@ async function sendReplyWithEventId(
 async function rememberSeerrTarget(
   ctx: CommandContext,
   eventId: string,
+  roomId: string,
+  requester: string,
   items: Array<{ id: number; title: string; mediaType: "movie" | "tv" }>
 ): Promise<void> {
   const filtered = items.filter((item) => Number.isInteger(item.id) && item.id > 0);
@@ -411,6 +438,8 @@ async function rememberSeerrTarget(
 
   targets[eventId] = {
     createdAt: new Date().toISOString(),
+    roomId,
+    requester,
     items: filtered.map((item) => ({ id: item.id, title: item.title, mediaType: item.mediaType }))
   };
   order.push(eventId);
@@ -429,6 +458,88 @@ async function rememberSeerrTarget(
     seerrRequestTargets: targets,
     seerrRequestOrder: order
   });
+}
+
+function isSeerrTargetWithinWindow(target: SeerrRequestTarget): boolean {
+  const createdAtMs = new Date(target.createdAt).getTime();
+  if (!Number.isFinite(createdAtMs)) {
+    return false;
+  }
+  return Date.now() - createdAtMs <= SEERR_SELECTION_WINDOW_MS;
+}
+
+function findExpiredSeerrTargets(targets: Record<string, SeerrRequestTarget>): string[] {
+  const stale: string[] = [];
+  for (const [eventId, target] of Object.entries(targets)) {
+    if (!isSeerrTargetWithinWindow(target)) {
+      stale.push(eventId);
+    }
+  }
+  return stale;
+}
+
+async function dropSeerrTargets(ctx: CommandContext, eventIds: string[]): Promise<void> {
+  if (eventIds.length === 0) {
+    return;
+  }
+
+  const state = await ctx.stateStore.load();
+  const existingTargets = state.seerrRequestTargets ?? {};
+  const hasAny = eventIds.some((eventId) => !!existingTargets[eventId]);
+  if (!hasAny) {
+    return;
+  }
+
+  const targets = { ...existingTargets };
+  for (const eventId of eventIds) {
+    delete targets[eventId];
+  }
+
+  const removeSet = new Set(eventIds);
+  const order = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder.filter((id) => !removeSet.has(id)) : [];
+  await ctx.stateStore.save({
+    seerrRequestTargets: targets,
+    seerrRequestOrder: order
+  });
+}
+
+function resolveSeerrSelectionTarget(
+  state: { seerrRequestTargets?: Record<string, SeerrRequestTarget>; seerrRequestOrder?: string[] },
+  ctx: CommandContext,
+  event: Record<string, any>
+): { eventId: string; target: SeerrRequestTarget } | null {
+  const targets = state.seerrRequestTargets ?? {};
+  const replyToEventId = getReplyToEventId(event);
+  const threadRootEventId = getThreadRootEventId(event);
+
+  const explicitTargetEventId = replyToEventId ?? threadRootEventId;
+  if (explicitTargetEventId) {
+    const explicitTarget = targets[explicitTargetEventId];
+    if (explicitTarget) {
+      return { eventId: explicitTargetEventId, target: explicitTarget };
+    }
+  }
+
+  const order = Array.isArray(state.seerrRequestOrder) ? state.seerrRequestOrder : [];
+  for (let i = order.length - 1; i >= 0; i -= 1) {
+    const eventId = order[i];
+    const target = targets[eventId];
+    if (!target) {
+      continue;
+    }
+    if (target.roomId && target.roomId !== ctx.roomId) {
+      continue;
+    }
+    if (target.requester && target.requester !== ctx.sender) {
+      continue;
+    }
+    if (!isSeerrTargetWithinWindow(target)) {
+      continue;
+    }
+    return { eventId, target };
+  }
+
+  return null;
 }
 
 async function dropSeerrTarget(ctx: CommandContext, eventId: string): Promise<void> {

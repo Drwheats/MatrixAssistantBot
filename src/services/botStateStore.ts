@@ -60,6 +60,8 @@ export interface MonitorHistoryEntry {
 
 export interface SeerrRequestTarget {
   createdAt: string;
+  roomId?: string;
+  requester?: string;
   items: Array<{ id: number; title: string; mediaType: "movie" | "tv" }>;
 }
 
@@ -271,6 +273,12 @@ function isSeerrTarget(value: unknown): value is SeerrRequestTarget {
   }
   const target = value as SeerrRequestTarget;
   if (typeof target.createdAt !== "string") {
+    return false;
+  }
+  if (target.roomId !== undefined && typeof target.roomId !== "string") {
+    return false;
+  }
+  if (target.requester !== undefined && typeof target.requester !== "string") {
     return false;
   }
   if (!Array.isArray(target.items)) {

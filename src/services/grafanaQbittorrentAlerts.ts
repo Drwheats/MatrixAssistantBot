@@ -75,9 +75,7 @@ export class GrafanaQbittorrentAlertsService {
       let sentCount = 0;
       let suppressedCount = 0;
       let lastSentAtMs: number | null = null;
-      let processedCount = 0;
       for (const entry of sorted) {
-        processedCount += 1;
         const entryMs = Date.parse(entry.timestamp);
         const withinMinute =
           Number.isFinite(entryMs) &&
@@ -103,12 +101,6 @@ export class GrafanaQbittorrentAlertsService {
         }
       }
 
-      if (processedCount < sorted.length) {
-        for (const entry of sorted.slice(processedCount)) {
-          seen.add(this.entryKey(entry.timestamp, entry.message));
-        }
-      }
-
       const hasMany = sorted.length > DEFAULT_MAX_ALERTS_PER_POLL;
       if (hasMany) {
         await this.client.sendMessage(roomId, {
@@ -130,6 +122,8 @@ export class GrafanaQbittorrentAlertsService {
   private buildQuery(state: BotState): string {
     const selector = state.qbittorrentLabelSelector
       ? normalizeLokiSelector(state.qbittorrentLabelSelector)
+      : env.grafanaQbittorrentLabelSelector
+        ? normalizeLokiSelector(env.grafanaQbittorrentLabelSelector)
       : env.GRAFANA_LOG_LABEL_SELECTOR
         ? normalizeLokiSelector(env.GRAFANA_LOG_LABEL_SELECTOR)
         : '{container="qbittorrent",job="qbittorrent"}';
